@@ -85,7 +85,11 @@ final class ServiceClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(body)
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            let body = String(data: data, encoding: .utf8) ?? "unknown error"
+            throw ServiceError.httpError(http.statusCode, body)
+        }
         return try JSONDecoder().decode(T.self, from: data)
     }
 
@@ -98,6 +102,16 @@ final class ServiceClient {
 
     private struct EmptyBody: Encodable {}
     private struct EmptyResponse: Decodable {}
+}
+
+enum ServiceError: LocalizedError {
+    case httpError(Int, String)
+    var errorDescription: String? {
+        if case .httpError(let code, let body) = self {
+            return "Service error \(code): \(body)"
+        }
+        return nil
+    }
 }
 
 struct ModelTestResult: Decodable {

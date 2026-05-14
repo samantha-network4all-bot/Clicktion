@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"strings"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -23,8 +24,27 @@ func (d *DB) Close() error {
 }
 
 func (d *DB) Migrate() error {
-	_, err := d.sql.Exec(schema)
-	return err
+	if _, err := d.sql.Exec(schema); err != nil {
+		return err
+	}
+	return d.runMigrations()
+}
+
+// runMigrations applies additive column changes that can't be expressed
+// in CREATE TABLE IF NOT EXISTS. Each ALTER TABLE is safe to re-run —
+// SQLite returns "duplicate column name" which we ignore.
+func (d *DB) runMigrations() error {
+	alters := []string{
+		`ALTER TABLE jobs ADD COLUMN skill_prompt TEXT`,
+	}
+	for _, stmt := range alters {
+		if _, err := d.sql.Exec(stmt); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 const schema = `
