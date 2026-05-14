@@ -30,14 +30,10 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the initial user message — the capture context is the implicit first message
-	if req.SkillName != "" {
-		h.db.AddChatMessage(db.ChatMessage{
-			CaptureID: req.CaptureID,
-			Role:      "system",
-			Content:   "Skill: " + req.SkillName,
-		})
-	}
+	// Do NOT pre-populate chat_messages here. buildMessages checks len(history)==0
+	// to decide whether to inject the screenshot + OCR context as the first user
+	// message. Any message written here would flip that check and skip the image.
+	// The skill name and prompt are stored on the job record itself.
 
 	skillName := req.SkillName
 	skillPrompt := req.SkillPrompt

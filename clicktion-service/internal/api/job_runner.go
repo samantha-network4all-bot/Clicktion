@@ -149,30 +149,34 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage) [
 		messages = append(messages, llm.TextMessage(llm.RoleSystem, *job.SkillPrompt))
 	}
 
-	// If this is the first turn, send the screenshot + OCR context as the first user message
-	if len(history) == 0 {
-		text := buildCaptureContext(capture)
-		if capture.ImagePath != "" {
-			imgData, err := os.ReadFile(capture.ImagePath)
-			if err == nil {
-				imgBase64 := base64.StdEncoding.EncodeToString(imgData)
-				messages = append(messages, llm.VisionMessage(llm.RoleUser, text, imgBase64))
-			} else {
-				log.Printf("could not load capture image %s: %v", capture.ImagePath, err)
-				messages = append(messages, llm.TextMessage(llm.RoleUser, text))
-			}
+	// Always inject the capture context + screenshot as the first user message.
+	// This ensures the model always receives the image, even when history exists
+	// (e.g. follow-up questions in the same thread).
+	text := buildCaptureContext(capture)
+	if capture.ImagePath != "" {
+		imgData, err := os.ReadFile(capture.ImagePath)
+		if err == nil {
+			imgBase64 := base64.StdEncoding.EncodeToString(imgData)
+			messages = append(messages, llm.VisionMessage(llm.RoleUser, text, imgBase64))
 		} else {
+			log.Printf("could not load capture image %s: %v", capture.ImagePath, err)
 			messages = append(messages, llm.TextMessage(llm.RoleUser, text))
 		}
 	} else {
-		// Replay history
-		for _, m := range history {
-			role := llm.RoleUser
-			if m.Role == "assistant" {
-				role = llm.RoleAssistant
-			}
-			messages = append(messages, llm.TextMessage(role, m.Content))
+		messages = append(messages, llm.TextMessage(llm.RoleUser, text))
+	}
+
+	// Append genuine conversation history (user + assistant turns only).
+	// Skip "system" meta-messages that were never real conversation turns.
+	for _, m := range history {
+		if m.Role == "system" {
+			continue
 		}
+		role := llm.RoleUser
+		if m.Role == "assistant" {
+			role = llm.RoleAssistant
+		}
+		messages = append(messages, llm.TextMessage(role, m.Content))
 	}
 
 	return messages
@@ -180,6 +184,7 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage) [
 
 func buildCaptureContext(capture *db.Capture) string {
 	var sb strings.Builder
+	sb.WriteString("Analyze this screenshot.\n")
 	if capture.AppName != nil {
 		sb.WriteString("Application: " + *capture.AppName + "\n")
 	}
@@ -187,7 +192,7 @@ func buildCaptureContext(capture *db.Capture) string {
 		sb.WriteString("Window: " + *capture.WindowTitle + "\n")
 	}
 	if capture.OCRText != "" {
-		sb.WriteString("\nScreen text:\n" + capture.OCRText)
+		sb.WriteString("\nText visible on screen:\n" + capture.OCRText)
 	}
 	return sb.String()
 }
