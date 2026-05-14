@@ -26,74 +26,90 @@ final class CaptureDialogViewModel: ObservableObject {
         runOCR()
     }
 
-    private func loadSkills() {
-        availableSkills = (try? SkillLoader.shared.loadAll()) ?? []
-    }
+    // MARK: - Send
 
-    private func runOCR() {
-        isOCRRunning = true
-        Task {
-            do {
-                let text = try await OCRProcessor.recognize(image: capture.image)
-                ocrText = text
-            } catch {
-                ocrText = ""
-            }
-            isOCRRunning = false
-            await submitAndSuggestSkill()
-        }
-    }
-
-    private func submitAndSuggestSkill() async {
-        guard AppState.shared.isServiceReady else { return }
-        guard let pngData = capture.image.pngData() else { return }
-
-        isSuggestingSkill = true
-        defer { isSuggestingSkill = false }
-
-        let skillInfos = availableSkills.map { SkillInfo(name: $0.name, triggers: $0.triggers) }
-        let payload = CapturePayload(
-            imageBase64: pngData.base64EncodedString(),
-            ocrText: ocrText,
-            appName: capture.appName,
-            windowTitle: capture.windowTitle,
-            isPrivate: isPrivate,
-            availableSkills: skillInfos
-        )
-
-        do {
-            let record = try await ServiceClient.shared.submitCapture(payload)
-            captureRecord = record
-            if let name = record.suggestedSkill {
-                selectedSkill = availableSkills.first { $0.name == name }
-            }
-            if selectedSkill == nil {
-                selectedSkill = availableSkills.first
-            }
-        } catch {
-            errorMessage = "Could not reach service: \(error.localizedDescription)"
-            selectedSkill = availableSkills.first
-        }
-    }
-
-    // Called when user hits Send — starts the job with the confirmed skill.
+    /// Called when the user hits Send. Submits the capture if not already done
+    /// (handles the case where the service wasn't ready when OCR finished),
+    /// then starts the LLM job.
     func send(completion: @escaping (String?, Skill?) -> Void) {
-        guard let record = captureRecord, let skill = selectedSkill else {
-            // No service connection — pass nil so the chat window shows an error state
-            completion(nil, selectedSkill)
+        guard let skill = selectedSkill else {
+            completion(nil, nil)
             return
         }
         isSending = true
         Task {
             defer { isSending = false }
             do {
+                let record: CaptureRecord
+                if let existing = captureRecord {
+                    record = existing
+                } else {
+                    // Service wasn't ready during OCR — submit now
+                    record = try await doSubmitCapture()
+                    captureRecord = record
+                }
                 let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill)
                 completion(job.id, skill)
             } catch {
-                errorMessage = "Failed to start: \(error.localizedDescription)"
+                errorMessage = error.localizedDescription
                 completion(nil, skill)
             }
         }
+    }
+
+    // MARK: - Private
+
+    private func loadSkills() {
+        availableSkills = (try? SkillLoader.shared.loadAll()) ?? []
+        selectedSkill = availableSkills.first
+    }
+
+    private func runOCR() {
+        isOCRRunning = true
+        Task {
+            ocrText = (try? await OCRProcessor.recognize(image: capture.image)) ?? ""
+            isOCRRunning = false
+            await submitAndSuggestSkill()
+        }
+    }
+
+    /// Best-effort background submit + skill suggestion after OCR.
+    /// If this fails the user can still hit Send, which retries.
+    private func submitAndSuggestSkill() async {
+        isSuggestingSkill = true
+        defer { isSuggestingSkill = false }
+
+        do {
+            let record = try await doSubmitCapture()
+            captureRecord = record
+            if let name = record.suggestedSkill,
+               let match = availableSkills.first(where: { $0.name == name }) {
+                selectedSkill = match
+            }
+        } catch {
+            // Non-fatal — user can still Send and the capture will be submitted then
+            errorMessage = "Skill suggestion unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    private func doSubmitCapture() async throws -> CaptureRecord {
+        guard let pngData = capture.image.pngData() else {
+            throw CaptureError.encodingFailed
+        }
+        let payload = CapturePayload(
+            imageBase64: pngData.base64EncodedString(),
+            ocrText: ocrText,
+            appName: capture.appName,
+            windowTitle: capture.windowTitle,
+            isPrivate: isPrivate,
+            availableSkills: availableSkills.map { SkillInfo(name: $0.name, triggers: $0.triggers) }
+        )
+        return try await ServiceClient.shared.submitCapture(payload)
+    }
+
+    enum CaptureError: LocalizedError {
+        case encodingFailed
+        var errorDescription: String? { "Could not encode screenshot as PNG." }
     }
 }
 
