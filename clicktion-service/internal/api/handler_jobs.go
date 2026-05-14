@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/clicktion/service/internal/db"
@@ -86,7 +87,7 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 			case <-ticker.C:
 				tokens, done := s.snapshot()
 				for idx < len(tokens) {
-					fmt.Fprintf(w, "data: %s\n\n", tokens[idx])
+					fmt.Fprintf(w, "data: %s\n\n", sseEscape(tokens[idx]))
 					idx++
 				}
 				flusher.Flush()
@@ -111,10 +112,19 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, m := range messages {
-		if m.Role == "assistant" {
-			// Send content character by character is unnecessary — send as one token
-			fmt.Fprintf(w, "data: %s\n\n", jsonString(m.Content))
-			flusher.Flush()
+		if m.Role == "assistant" && m.Content != "" {
+			// Replay by sending words so the client sees progressive text,
+			// matching the feel of a live stream.
+			words := strings.Fields(m.Content)
+			for i, w2 := range words {
+				chunk := w2
+				if i < len(words)-1 {
+					chunk += " "
+				}
+				fmt.Fprintf(w, "data: %s\n\n", sseEscape(chunk))
+				flusher.Flush()
+				time.Sleep(8 * time.Millisecond)
+			}
 		}
 	}
 	fmt.Fprintf(w, "data: [DONE]\n\n")
@@ -152,7 +162,14 @@ func (h *handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, map[string]string{"status": "queued"})
 }
 
-// jsonString returns a JSON-encoded string for embedding in SSE data fields
+// sseEscape makes a string safe for SSE data fields by escaping newlines.
+// SSE uses blank lines as event delimiters, so literal newlines must be
+// sent as separate "data:" lines.
+func sseEscape(s string) string {
+	return strings.ReplaceAll(s, "\n", "\ndata: ")
+}
+
+// jsonString kept for JSON API responses (not SSE).
 func jsonString(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)

@@ -13,7 +13,7 @@ struct MessageBubbleView: View {
                 ForEach(Array(message.segments.enumerated()), id: \.offset) { _, segment in
                     segmentView(segment)
                 }
-                if message.isStreaming && message.content.isEmpty {
+                if message.isStreaming {
                     StreamingDotsView()
                 }
             }

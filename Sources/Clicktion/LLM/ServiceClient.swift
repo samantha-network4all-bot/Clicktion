@@ -38,11 +38,25 @@ final class ServiceClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let (bytes, _) = try await URLSession.shared.bytes(for: request)
+        // Accumulate consecutive data: lines into one logical event before dispatching.
+        var pendingEvent = ""
         for try await line in bytes.lines {
             if line.hasPrefix("data: ") {
-                let data = String(line.dropFirst(6))
-                if data == "[DONE]" { break }
-                onToken(data)
+                let chunk = String(line.dropFirst(6))
+                if chunk == "[DONE]" {
+                    if !pendingEvent.isEmpty { onToken(pendingEvent); pendingEvent = "" }
+                    break
+                }
+                // sseEscape splits newlines into separate data: lines — reassemble them
+                if pendingEvent.isEmpty {
+                    pendingEvent = chunk
+                } else {
+                    pendingEvent += "\n" + chunk
+                }
+            } else if line.isEmpty && !pendingEvent.isEmpty {
+                // Blank line signals end of SSE event
+                onToken(pendingEvent)
+                pendingEvent = ""
             }
         }
     }
