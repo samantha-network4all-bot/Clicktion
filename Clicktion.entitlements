@@ -6,5 +6,7 @@
     <false/>
     <key>com.apple.security.screen-capture</key>
     <true/>
+    <key>com.apple.application-identifier</key>
+    <string>com.clicktion.app</string>
 </dict>
 </plist>

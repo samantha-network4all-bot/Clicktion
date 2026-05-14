@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -147,14 +149,20 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage) [
 		messages = append(messages, llm.TextMessage(llm.RoleSystem, *job.SkillPrompt))
 	}
 
-	// If this is the first turn, inject the capture context as the first user message
+	// If this is the first turn, send the screenshot + OCR context as the first user message
 	if len(history) == 0 {
-		context := buildCaptureContext(capture)
+		text := buildCaptureContext(capture)
 		if capture.ImagePath != "" {
-			// TODO: load image bytes and send as vision message
-			messages = append(messages, llm.TextMessage(llm.RoleUser, context))
+			imgData, err := os.ReadFile(capture.ImagePath)
+			if err == nil {
+				imgBase64 := base64.StdEncoding.EncodeToString(imgData)
+				messages = append(messages, llm.VisionMessage(llm.RoleUser, text, imgBase64))
+			} else {
+				log.Printf("could not load capture image %s: %v", capture.ImagePath, err)
+				messages = append(messages, llm.TextMessage(llm.RoleUser, text))
+			}
 		} else {
-			messages = append(messages, llm.TextMessage(llm.RoleUser, context))
+			messages = append(messages, llm.TextMessage(llm.RoleUser, text))
 		}
 	} else {
 		// Replay history
