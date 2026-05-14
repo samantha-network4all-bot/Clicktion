@@ -91,11 +91,13 @@ struct SetupWizardView: View {
             PermissionRow(
                 icon: "camera.metering.spot",
                 title: "Screen Recording",
-                description: "Required to capture screenshots. Without this, Clicktion cannot see your screen.",
+                description: "Required to capture screenshots. Enable Clicktion in System Settings → Privacy & Security → Screen Recording, then return here.",
                 status: screenRecordingGranted ? .granted : .denied,
                 actionLabel: screenRecordingGranted ? nil : "Open System Settings",
                 onAction: {
-                    CGRequestScreenCaptureAccess()
+                    // Open directly — do NOT call CGRequestScreenCaptureAccess() here.
+                    // That API triggers the TCC dialog every call, even when already granted.
+                    // The system prompt appears naturally on first capture via SCContentSharingPicker.
                     NSWorkspace.shared.open(
                         URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture")!
                     )
