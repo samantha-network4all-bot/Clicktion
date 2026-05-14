@@ -1,5 +1,4 @@
 import SwiftUI
-import CoreGraphics
 import Network
 
 struct SetupWizardView: View {
@@ -11,10 +10,7 @@ struct SetupWizardView: View {
     @State private var isTesting: Bool = false
     @State private var isLocal: Bool = false
 
-    // Permissions state
-    @State private var screenRecordingGranted: Bool = CGPreflightScreenCaptureAccess()
     @State private var localNetworkGranted: Bool = false
-    @State private var localNetworkChecking: Bool = false
 
     enum Step: Hashable {
         case welcome, permissions, addModel, testModel, done
@@ -36,14 +32,6 @@ struct SetupWizardView: View {
         }
         .padding(32)
         .frame(width: 560, height: 460)
-        // Poll screen recording status while on permissions step
-        .task(id: step) {
-            guard step == .permissions else { return }
-            while step == .permissions {
-                screenRecordingGranted = CGPreflightScreenCaptureAccess()
-                try? await Task.sleep(nanoseconds: 800_000_000)
-            }
-        }
     }
 
     // MARK: - Progress dots
@@ -87,17 +75,16 @@ struct SetupWizardView: View {
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Screen recording
+            // Screen recording — informational only, not blocking.
+            // CGPreflightScreenCaptureAccess() is unreliable for ad-hoc builds;
+            // the real macOS prompt appears automatically on first capture attempt.
             PermissionRow(
                 icon: "camera.metering.spot",
                 title: "Screen Recording",
-                description: "Required to capture screenshots. Enable Clicktion in System Settings → Privacy & Security → Screen Recording, then return here.",
-                status: screenRecordingGranted ? .granted : .denied,
-                actionLabel: screenRecordingGranted ? nil : "Open System Settings",
+                description: "Required to capture screenshots. If macOS prompts you the first time you capture, click Allow. To check now: System Settings → Privacy & Security → Screen Recording.",
+                status: .unknown,
+                actionLabel: "Open System Settings",
                 onAction: {
-                    // Open directly — do NOT call CGRequestScreenCaptureAccess() here.
-                    // That API triggers the TCC dialog every call, even when already granted.
-                    // The system prompt appears naturally on first capture via SCContentSharingPicker.
                     NSWorkspace.shared.open(
                         URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture")!
                     )
@@ -121,13 +108,6 @@ struct SetupWizardView: View {
                 Spacer()
                 Button("Continue") { step = .addModel }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!screenRecordingGranted)
-            }
-
-            if !screenRecordingGranted {
-                Label("Screen recording access is required to continue.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
             }
         }
     }
@@ -245,24 +225,19 @@ struct SetupWizardView: View {
     // MARK: - Actions
 
     private func triggerLocalNetworkPermission() {
-        localNetworkChecking = true
         // NWConnection to a local address triggers the system's local network prompt
         let host = NWEndpoint.Host("10.0.0.1")
         let port = NWEndpoint.Port(rawValue: 80)!
         let connection = NWConnection(host: host, port: port, using: .tcp)
-        connection.stateUpdateHandler = { [self] state in
+        connection.stateUpdateHandler = { [self] _ in
             DispatchQueue.main.async {
-                // Whether it succeeds or fails, the prompt was shown
                 localNetworkGranted = true
-                localNetworkChecking = false
                 connection.cancel()
             }
         }
         connection.start(queue: .main)
-        // Timeout after 2s regardless
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             localNetworkGranted = true
-            localNetworkChecking = false
             connection.cancel()
         }
     }
