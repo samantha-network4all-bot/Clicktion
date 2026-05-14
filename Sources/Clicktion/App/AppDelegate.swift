@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
 
         if !AppState.shared.hasCompletedSetup {
+            // Mark complete immediately so closing the window early doesn't re-show it.
+            // Model management is always available from the menu.
+            AppState.shared.hasCompletedSetup = true
             showSetupWizard()
         }
     }

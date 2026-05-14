@@ -216,7 +216,7 @@ struct SetupWizardView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button("Start Using Clicktion") {
-                NSApp.keyWindow?.close()
+                NSApp.windows.first { $0.title == "Welcome to Clicktion" }?.close()
             }
             .buttonStyle(.borderedProminent)
         }
@@ -255,7 +255,6 @@ struct SetupWizardView: View {
     }
 
     private func finishSetup() {
-        AppState.shared.hasCompletedSetup = true
         step = .done
     }
 }
