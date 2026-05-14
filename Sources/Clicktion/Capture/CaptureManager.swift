@@ -9,11 +9,43 @@ final class CaptureManager: NSObject, ObservableObject {
 
     private override init() {}
 
-    func startCapture() async throws {
+    func startCapture() async {
+        // Check permission first. SCShareableContent.current throws if the user
+        // hasn't granted screen recording access yet.
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        } catch {
+            showPermissionAlert()
+            return
+        }
+
         let picker = SCContentSharingPicker.shared
         picker.add(self)
         picker.isActive = true
         picker.present()
+    }
+
+    private func showPermissionAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Screen Recording Permission Required"
+        alert.informativeText = "Clicktion needs screen recording access to capture screenshots.\n\nOpen System Settings → Privacy & Security → Screen Recording and enable Clicktion, then try again."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(
+                URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture")!
+            )
+        }
+    }
+
+    private func showCaptureErrorAlert(_ error: Error) {
+        let alert = NSAlert()
+        alert.messageText = "Capture Failed"
+        alert.informativeText = error.localizedDescription
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }
 
@@ -31,15 +63,20 @@ extension CaptureManager: SCContentSharingPickerObserver {
                 picker.isActive = false
                 CaptureDialogWindow.shared.show(capture: result)
             } catch {
-                print("Capture failed: \(error)")
+                showCaptureErrorAlert(error)
             }
         }
     }
 
-    nonisolated func contentSharingPicker(_ picker: SCContentSharingPicker, didCancelFor stream: SCStream?) {}
+    nonisolated func contentSharingPicker(
+        _ picker: SCContentSharingPicker,
+        didCancelFor stream: SCStream?
+    ) {}
 
     nonisolated func contentSharingPickerStartDidFailWithError(_ error: Error) {
-        print("Picker error: \(error)")
+        Task { @MainActor in
+            showCaptureErrorAlert(error)
+        }
     }
 
     private func performCapture(with filter: SCContentFilter) async throws -> CaptureResult {
@@ -53,25 +90,12 @@ extension CaptureManager: SCContentSharingPickerObserver {
             configuration: config
         )
 
-        let appName = extractAppName(from: filter)
-        let windowTitle = extractWindowTitle(from: filter)
-
         return CaptureResult(
             image: NSImage(cgImage: image, size: filter.contentRect.size),
-            appName: appName,
-            windowTitle: windowTitle,
+            appName: nil,
+            windowTitle: nil,
             timestamp: Date()
         )
-    }
-
-    private func extractAppName(from filter: SCContentFilter) -> String? {
-        // SCContentFilter doesn't expose windows directly after iOS 17 API changes
-        // App name is captured via the picker context stored separately
-        return nil
-    }
-
-    private func extractWindowTitle(from filter: SCContentFilter) -> String? {
-        return nil
     }
 }
 

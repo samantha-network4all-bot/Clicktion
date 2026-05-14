@@ -74,9 +74,7 @@ struct MenuView: View {
     }
 
     private func startCapture() {
-        Task {
-            try? await CaptureManager.shared.startCapture()
-        }
+        Task { await CaptureManager.shared.startCapture() }
     }
 
     private func openArchive() {
