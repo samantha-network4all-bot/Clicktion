@@ -1,0 +1,8 @@
+{
+  "allow_cli": true,
+  "allow_file_write": false,
+  "allow_network": false,
+  "skip_confirmation": false,
+  "danger_level": "high",
+  "blocklist": ["rm -rf", "sudo rm", "dd ", "mkfs", ":(){ :|:& };:", "> /dev/sd"]
+}

@@ -1,0 +1,23 @@
+# Swift / SPM
+.build/
+*.o
+*.d
+*.swp
+*.xcuserstate
+*.xcworkspacedata
+xcuserdata/
+
+# Go
+clicktion-service/clicktion-service
+
+# macOS
+.DS_Store
+
+# App bundle — only track Info.plist, not the compiled binary or code signature
+Clicktion.app/Contents/MacOS/
+Clicktion.app/Contents/_CodeSignature/
+
+# Runtime data (user-specific, not source)
+*.db
+*.db-wal
+*.db-shm

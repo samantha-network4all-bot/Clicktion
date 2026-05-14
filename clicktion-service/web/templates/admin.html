@@ -1,0 +1,96 @@
+{{template "base" .}}
+{{define "title"}}Admin — Clicktion{{end}}
+{{define "nav-archive"}}{{end}}
+{{define "nav-admin"}}class="active"{{end}}
+
+{{define "content"}}
+<div class="sub-nav">
+  <a href="/admin" class="active">Overview</a>
+  <a href="/admin/models">Models</a>
+  <a href="/admin/keys">API Keys</a>
+  <a href="/admin/storage">Storage</a>
+</div>
+
+{{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+
+<div class="admin-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.CaptureCount}}</div>
+    <div class="stat-label">Total captures</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.TodoCount}}</div>
+    <div class="stat-label">Open todos</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{len .Models}}</div>
+    <div class="stat-label">LLM models</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.DiskReadable}}</div>
+    <div class="stat-label">Disk usage</div>
+  </div>
+</div>
+
+<!-- Models summary -->
+<div class="section-header">
+  <h2>Models</h2>
+  <a href="/admin/models" class="btn btn-secondary" style="font-size:13px;padding:6px 14px">Manage →</a>
+</div>
+{{if not .Models}}
+<p style="color:var(--secondary);font-size:14px;margin-bottom:24px">No models configured. <a href="/admin/models/new">Add one →</a></p>
+{{else}}
+<table class="admin-table" style="margin-bottom:28px">
+  <thead><tr><th>Name</th><th>Model</th><th>Type</th><th>Default</th></tr></thead>
+  <tbody>
+  {{range .Models}}
+  <tr>
+    <td><strong>{{.Name}}</strong></td>
+    <td style="font-family:monospace;font-size:13px">{{.ModelName}}</td>
+    <td><span class="{{classifyClass .IsLocal .IsLocalOverride}}">{{classifyLabel .IsLocal .IsLocalOverride}}</span></td>
+    <td>{{if .IsDefault}}✓{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+<!-- LLM usage -->
+{{if .LLMStat}}
+<div class="section-header"><h2>LLM Usage</h2></div>
+<table class="admin-table" style="margin-bottom:28px">
+  <thead><tr><th>Model</th><th>Calls</th><th>Avg latency</th><th>Prompt tokens</th><th>Completion tokens</th></tr></thead>
+  <tbody>
+  {{range .LLMStat}}
+  <tr>
+    <td class="log-model">{{.ModelName}}</td>
+    <td>{{.CallCount}}</td>
+    <td>{{.AvgLatencyMs}}ms</td>
+    <td>{{.TotalPrompt}}</td>
+    <td>{{.TotalCompl}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+<!-- Recent logs -->
+{{if .Logs}}
+<div class="section-header"><h2>Recent LLM calls</h2></div>
+<table class="admin-table">
+  <thead><tr><th>Model</th><th>Prompt</th><th>Completion</th><th>Latency</th><th>Time</th><th>Status</th></tr></thead>
+  <tbody>
+  {{range .Logs}}
+  <tr>
+    <td>{{.ModelName}}</td>
+    <td>{{.PromptTokens}}</td>
+    <td>{{.CompletionTokens}}</td>
+    <td>{{.LatencyMs}}ms</td>
+    <td style="color:var(--secondary);font-size:12px">{{timeAgo .CreatedAt}}</td>
+    <td>{{if .HasError}}<span class="log-err">✗</span>{{else}}<span class="log-ok">✓</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

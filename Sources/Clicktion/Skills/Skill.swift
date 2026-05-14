@@ -1,0 +1,53 @@
+import Foundation
+
+struct Skill: Identifiable, Codable, Hashable {
+    let id: UUID
+    var name: String
+    var icon: String
+    var triggers: [String]
+    var systemPrompt: String
+    var security: SkillSecurity
+    var filename: String
+
+    init(id: UUID = UUID(), name: String, icon: String, triggers: [String],
+         systemPrompt: String, security: SkillSecurity, filename: String) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.triggers = triggers
+        self.systemPrompt = systemPrompt
+        self.security = security
+        self.filename = filename
+    }
+}
+
+struct SkillSecurity: Codable, Hashable {
+    var allowCLI: Bool
+    var allowFileWrite: Bool
+    var allowNetwork: Bool
+    var skipConfirmation: Bool
+    var dangerLevel: DangerLevel
+    var blocklist: [String]
+
+    enum DangerLevel: String, Codable, CaseIterable, Hashable {
+        case none, low, medium, high
+    }
+
+    static let safe = SkillSecurity(
+        allowCLI: false,
+        allowFileWrite: false,
+        allowNetwork: false,
+        skipConfirmation: false,
+        dangerLevel: .none,
+        blocklist: []
+    )
+
+    enum CodingKeys: String, CodingKey {
+        case allowCLI = "allow_cli"
+        case allowFileWrite = "allow_file_write"
+        case allowNetwork = "allow_network"
+        case skipConfirmation = "skip_confirmation"
+        case dangerLevel = "danger_level"
+        case blocklist
+    }
+}

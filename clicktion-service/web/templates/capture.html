@@ -1,0 +1,88 @@
+{{template "base" .}}
+
+{{define "title"}}
+{{if .Capture.AppName}}{{deref .Capture.AppName}} — {{end}}Capture — Clicktion
+{{end}}
+
+{{define "nav-archive"}}{{end}}
+
+{{define "content"}}
+<a class="back-link" href="/archive">
+  ‹ Archive
+</a>
+
+<!-- Header -->
+<div class="detail-header">
+  {{if .Capture.ImagePath}}
+  <div class="detail-thumb">
+    <img src="/archive/images/{{.Capture.ID}}" alt="Capture">
+  </div>
+  {{end}}
+
+  <div class="detail-meta">
+    <h1>{{if .Capture.AppName}}{{deref .Capture.AppName}}{{else}}Capture{{end}}</h1>
+
+    {{if .Capture.WindowTitle}}
+    <div class="meta-row">
+      <span>Window:</span>
+      <strong>{{deref .Capture.WindowTitle}}</strong>
+    </div>
+    {{end}}
+
+    <div class="meta-row">
+      <span>Captured:</span>
+      <strong>{{.Capture.CreatedAt.Format "2 January 2006, 15:04"}}</strong>
+      <span style="color:#aaa">·</span>
+      <span>{{timeAgo .Capture.CreatedAt}}</span>
+    </div>
+
+    <div class="meta-row">
+      {{if .Capture.SkillUsed}}
+      <span class="badge badge-skill">{{deref .Capture.SkillUsed}}</span>
+      {{end}}
+      {{if .Capture.IsPrivate}}
+      <span class="badge badge-private">🔒 Private</span>
+      {{else}}
+      <span class="badge badge-public">🌐 Public</span>
+      {{end}}
+      {{if .Capture.IsTodo}}
+      <span class="badge badge-todo">📌 Todo{{if .Capture.TodoNote}} — {{deref .Capture.TodoNote}}{{end}}</span>
+      {{end}}
+    </div>
+
+    <div class="detail-actions">
+      <form class="delete-form" method="post" action="/archive/captures/{{.Capture.ID}}/delete"
+            onsubmit="return confirm('Delete this capture and its entire chat thread? This cannot be undone.')">
+        <button type="submit">Delete capture</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- OCR text -->
+{{if .Capture.OCRText}}
+<details class="ocr-section">
+  <summary>Extracted text ({{len .Capture.OCRText}} chars)</summary>
+  <pre class="ocr-body">{{.Capture.OCRText}}</pre>
+</details>
+{{end}}
+
+<!-- Chat thread -->
+<div class="chat-section">
+  <div class="chat-title">Chat thread ({{len .Messages}} messages)</div>
+  <div class="chat-messages">
+    {{if not .Messages}}
+    <div class="chat-empty">No messages yet.</div>
+    {{else}}
+    {{range .Messages}}
+    {{if ne .Role "system"}}
+    <div class="chat-msg {{.Role}}">
+      <span class="msg-role">{{if eq .Role "user"}}You{{else}}Assistant{{end}}</span>
+      <div class="msg-bubble">{{renderContent .Content}}</div>
+    </div>
+    {{end}}
+    {{end}}
+    {{end}}
+  </div>
+</div>
+{{end}}

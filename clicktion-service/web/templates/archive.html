@@ -1,0 +1,109 @@
+{{template "base" .}}
+
+{{define "title"}}Archive — Clicktion{{end}}
+
+{{define "content"}}
+<!-- Stats bar -->
+<div class="stats-bar">
+  <span><strong>{{.Stats.CaptureCount}}</strong> captures</span>
+  <span><strong>{{.Stats.TodoCount}}</strong> open todos</span>
+  <span><strong>{{.Stats.DiskReadable}}</strong> on disk</span>
+  <span class="spacer"></span>
+  <span>{{.Total}} result{{if ne .Total 1}}s{{end}}</span>
+</div>
+
+<!-- Toolbar -->
+<form class="toolbar" method="get" action="/archive">
+  <div class="search-wrap">
+    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+      <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"/>
+    </svg>
+    <input class="search-input" type="search" name="q" placeholder="Search captures…" value="{{.Filter.Query}}" autocomplete="off">
+  </div>
+
+  <div class="filter-tabs">
+    <a class="filter-tab{{if and (not .Filter.Todo) (not .Filter.Public) (eq .Filter.Skill "")}} active{{end}}"
+       href="/archive{{if .Filter.Query}}?q={{.Filter.Query}}{{end}}">All</a>
+    <a class="filter-tab{{if .Filter.Todo}} active{{end}}"
+       href="/archive?filter=todo{{if .Filter.Query}}&q={{.Filter.Query}}{{end}}">Todos</a>
+    <a class="filter-tab{{if .Filter.Public}} active{{end}}"
+       href="/archive?filter=public{{if .Filter.Query}}&q={{.Filter.Query}}{{end}}">Public</a>
+  </div>
+
+  {{if .Skills}}
+  <select class="skill-select" name="skill" onchange="this.form.submit()">
+    <option value="">All skills</option>
+    {{range .Skills}}
+    <option value="{{.}}"{{if eq . $.Filter.Skill}} selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+  {{end}}
+</form>
+
+<!-- Grid -->
+<div class="capture-grid">
+  {{if not .Captures}}
+  <div class="empty">
+    <h2>No captures yet</h2>
+    <p>Use the Clicktion menu bar app to capture your first screenshot.</p>
+  </div>
+  {{else}}
+  {{range .Captures}}
+  <div class="capture-card">
+    {{if .ImagePath}}
+    <a href="/archive/captures/{{.ID}}">
+      <img class="card-thumb" src="/archive/images/{{.ID}}" alt="Capture" loading="lazy">
+    </a>
+    {{else}}
+    <a href="/archive/captures/{{.ID}}" class="card-thumb-placeholder">⌥</a>
+    {{end}}
+
+    <div class="card-body">
+      <div class="card-app">
+        {{if .AppName}}{{deref .AppName}}{{else}}Unknown app{{end}}
+        {{if .WindowTitle}} — <span style="font-weight:400;color:#6e6e73">{{truncate (deref .WindowTitle) 30}}</span>{{end}}
+      </div>
+      {{if .LastMessage}}
+      <div class="card-preview">{{truncate .LastMessage 80}}</div>
+      {{else if .OCRText}}
+      <div class="card-preview">{{truncate .OCRText 80}}</div>
+      {{end}}
+      <div class="card-meta">
+        {{if .SkillUsed}}<span class="badge badge-skill">{{deref .SkillUsed}}</span>{{end}}
+        {{if .IsTodo}}<span class="badge badge-todo">Todo</span>{{end}}
+        {{if .IsPrivate}}<span class="badge badge-private">Private</span>
+        {{else}}<span class="badge badge-public">Public</span>{{end}}
+        <span class="card-time">{{timeAgo .CreatedAt}}</span>
+      </div>
+    </div>
+
+    <div class="card-actions">
+      <a href="/archive/captures/{{.ID}}">Open</a>
+      <div class="card-divider"></div>
+      <form method="post" action="/archive/captures/{{.ID}}/delete"
+            onsubmit="return confirm('Delete this capture? This cannot be undone.')">
+        <button type="submit">Delete</button>
+      </form>
+    </div>
+  </div>
+  {{end}}
+  {{end}}
+</div>
+
+<!-- Pagination -->
+{{if gt .Pages 1}}
+<div class="pagination">
+  {{$f := .Filter}}
+  <a class="page-btn{{if le $f.Page 1}} disabled{{end}}"
+     href="/archive?page={{sub $f.Page 1}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">‹ Prev</a>
+
+  {{range seq 1 .Pages}}
+  <a class="page-btn{{if eq . $f.Page}} active{{end}}"
+     href="/archive?page={{.}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">{{.}}</a>
+  {{end}}
+
+  <a class="page-btn{{if ge $f.Page $.Pages}} disabled{{end}}"
+     href="/archive?page={{add $f.Page 1}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">Next ›</a>
+</div>
+{{end}}
+{{end}}

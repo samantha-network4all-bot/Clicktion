@@ -1,0 +1,78 @@
+{{template "base" .}}
+{{define "title"}}{{if .IsNew}}Add Model{{else}}Edit Model{{end}} — Admin — Clicktion{{end}}
+{{define "nav-archive"}}{{end}}
+{{define "nav-admin"}}class="active"{{end}}
+
+{{define "content"}}
+<div class="sub-nav">
+  <a href="/admin">Overview</a>
+  <a href="/admin/models" class="active">Models</a>
+  <a href="/admin/keys">API Keys</a>
+  <a href="/admin/storage">Storage</a>
+</div>
+
+<div class="section-header">
+  <h2>{{if .IsNew}}Add LLM Model{{else}}Edit Model{{end}}</h2>
+</div>
+
+{{if index .Errors "_"}}<div class="flash flash-err">{{index .Errors "_"}}</div>{{end}}
+
+<div class="form-card">
+  <form method="post" action="{{if .IsNew}}/admin/models/new{{else}}/admin/models/{{.Model.ID}}/edit{{end}}">
+
+    <div class="form-group">
+      <label class="form-label">Display name</label>
+      <input class="form-input" type="text" name="name" value="{{.Model.Name}}"
+             placeholder="My Ollama / OpenAI GPT-4o" required>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Base URL</label>
+      <input class="form-input" type="url" name="base_url" value="{{.Model.BaseURL}}"
+             placeholder="http://localhost:11434/v1  or  https://openrouter.ai/api/v1" required>
+      <p class="form-hint">Any OpenAI-compatible endpoint. Local addresses (10.x, 192.168.x, localhost) are classified as local automatically.</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">API key <span style="font-weight:400;color:var(--secondary)">(leave empty for local models)</span></label>
+      <input class="form-input" type="password" name="api_key" value="{{.Model.APIKey}}"
+             placeholder="sk-…  or  empty for Ollama">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Model name</label>
+      <input class="form-input" type="text" name="model_name" value="{{.Model.ModelName}}"
+             placeholder="llama3.2-vision  /  gpt-4o  /  anthropic/claude-sonnet-4-5" required>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Fallback order</label>
+        <input class="form-input" type="number" name="fallback_order" value="{{.Model.FallbackOrder}}" min="0" max="999">
+        <p class="form-hint">Lower = tried first. 0 = highest priority.</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Classification override</label>
+        <select class="form-select" name="local_override">
+          <option value="auto"   {{if eq (localOverride .Model.IsLocalOverride) "auto"}}selected{{end}}>Auto-detect from URL</option>
+          <option value="local"  {{if eq (localOverride .Model.IsLocalOverride) "local"}}selected{{end}}>Force local</option>
+          <option value="remote" {{if eq (localOverride .Model.IsLocalOverride) "remote"}}selected{{end}}>Force remote</option>
+        </select>
+        <p class="form-hint">Local models process private captures. Remote models only process public captures.</p>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-check">
+        <input type="checkbox" name="is_default" {{if .Model.IsDefault}}checked{{end}}>
+        Set as default model
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{if .IsNew}}Add model{{else}}Save changes{{end}}</button>
+      <a href="/admin/models" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{{end}}

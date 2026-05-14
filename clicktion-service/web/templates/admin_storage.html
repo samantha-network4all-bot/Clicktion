@@ -1,0 +1,75 @@
+{{template "base" .}}
+{{define "title"}}Storage — Admin — Clicktion{{end}}
+{{define "nav-archive"}}{{end}}
+{{define "nav-admin"}}class="active"{{end}}
+
+{{define "content"}}
+<div class="sub-nav">
+  <a href="/admin">Overview</a>
+  <a href="/admin/models">Models</a>
+  <a href="/admin/keys">API Keys</a>
+  <a href="/admin/storage" class="active">Storage</a>
+</div>
+
+{{if .Msg}}<div class="flash flash-ok">{{.Msg}}</div>{{end}}
+
+<div class="admin-grid" style="margin-bottom:28px">
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.CaptureCount}}</div>
+    <div class="stat-label">Total captures</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.DiskReadable}}</div>
+    <div class="stat-label">Disk usage</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{.Stats.TodoCount}}</div>
+    <div class="stat-label">Open todos</div>
+  </div>
+</div>
+
+<!-- LLM usage by model -->
+{{if .LLMStats}}
+<div class="section-header"><h2>LLM usage by model</h2></div>
+<table class="admin-table" style="margin-bottom:28px">
+  <thead><tr><th>Model</th><th>Calls</th><th>Prompt tokens</th><th>Completion tokens</th><th>Avg latency</th></tr></thead>
+  <tbody>
+  {{range .LLMStats}}
+  <tr>
+    <td class="log-model">{{.ModelName}}</td>
+    <td>{{.CallCount}}</td>
+    <td>{{.TotalPrompt}}</td>
+    <td>{{.TotalCompl}}</td>
+    <td>{{.AvgLatencyMs}}ms</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+<!-- Cleanup -->
+<div class="section-header"><h2>Cleanup</h2></div>
+<div class="form-card">
+  <p style="font-size:14px;color:var(--secondary);margin-bottom:20px">
+    Permanently delete captures (and their images and chat history) older than a specified number of days.
+    Todo-flagged captures are also deleted — export anything important first.
+  </p>
+  <form method="post" action="/admin/storage/cleanup"
+        onsubmit="return confirm('Delete all captures older than ' + document.getElementById('days').value + ' days? This cannot be undone.')">
+    <div class="form-row" style="align-items:flex-end">
+      <div class="form-group">
+        <label class="form-label">Delete captures older than</label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input class="form-input" type="number" id="days" name="days" value="30" min="1" max="3650" style="width:100px">
+          <span style="font-size:14px;color:var(--secondary)">days</span>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn" style="background:var(--danger);color:#fff;border-color:var(--danger)">
+        Delete old captures
+      </button>
+    </div>
+  </form>
+</div>
+{{end}}
