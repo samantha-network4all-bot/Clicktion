@@ -61,7 +61,7 @@ struct MenuView: View {
                 SkillEditorWindow.shared.show()
             }
             MenuAction(label: "Manage Models…", icon: "cpu") {
-                showingModelManager = true
+                NSWorkspace.shared.open(AppState.shared.serviceURL.appendingPathComponent("/admin/models"))
             }
             MenuAction(label: "Archive…", icon: "tray.full") {
                 openArchive()

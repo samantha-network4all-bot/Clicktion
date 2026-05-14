@@ -26,6 +26,8 @@
     <true/>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Clicktion needs screen recording access to capture screenshots for AI analysis.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Clicktion needs local network access to connect to LLM models running on your local network (Ollama, LM Studio, and similar).</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Clicktion uses Apple Events for automation tasks.</string>
 </dict>

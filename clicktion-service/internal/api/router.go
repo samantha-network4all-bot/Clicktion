@@ -23,6 +23,22 @@ func NewRouter(database *db.DB, dataDir string) http.Handler {
 		w.Write([]byte("ok"))
 	})
 
+	// Bootstrap: creates the first API key when no keys exist yet.
+	// Returns 403 once any key exists, so it can only be called once.
+	mux.HandleFunc("POST /bootstrap", func(w http.ResponseWriter, r *http.Request) {
+		keys, err := database.ListAPIKeys()
+		if err != nil || len(keys) > 0 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		plaintext, err := database.CreateAPIKey("mac-app")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonOK(w, map[string]string{"key": plaintext})
+	})
+
 	return mux
 }
 
