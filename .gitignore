@@ -21,3 +21,4 @@ Clicktion.app/Contents/_CodeSignature/
 *.db
 *.db-wal
 *.db-shm
+.apikey

@@ -51,19 +51,15 @@ final class ServiceManager {
         }
     }
 
-    // Create the first API key if none exists yet; store it in Keychain
+    // Bootstrap: the Go service writes the key to .apikey in dataDir.
+    // We just trigger POST /bootstrap; if the file already exists the
+    // service returns 403 and the existing file is used. Either way,
+    // AppState.apiKey reads the file directly — no HTTP response parsing needed.
     private func bootstrapAPIKey() async {
-        let hasKey = await MainActor.run { !AppState.shared.apiKey.isEmpty }
-        if hasKey { return }
-
         var req = URLRequest(url: serviceURL.appendingPathComponent("/bootstrap"))
         req.httpMethod = "POST"
-        guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONDecoder().decode([String: String].self, from: data),
-              let key = json["key"] else { return }
-
-        await MainActor.run { AppState.shared.apiKey = key }
+        _ = try? await URLSession.shared.data(for: req)
+        // File is written by the service; AppState.apiKey reads it automatically.
     }
 
     // Fetch the default model from the service and populate AppState

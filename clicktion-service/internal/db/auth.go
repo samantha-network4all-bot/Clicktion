@@ -55,3 +55,14 @@ func (d *DB) DeleteAPIKey(id string) error {
 	_, err := d.sql.Exec(`DELETE FROM api_keys WHERE id = ?`, id)
 	return err
 }
+
+func (d *DB) DeleteAllAPIKeys() error {
+	_, err := d.sql.Exec(`DELETE FROM api_keys`)
+	return err
+}
+
+func (d *DB) APIKeyCount() int {
+	var n int
+	d.sql.QueryRow(`SELECT COUNT(*) FROM api_keys`).Scan(&n)
+	return n
+}
