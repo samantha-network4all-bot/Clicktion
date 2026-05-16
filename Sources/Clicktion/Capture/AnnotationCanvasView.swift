@@ -139,7 +139,8 @@ final class DrawingNSView: NSView {
     var liveStart: CGPoint = .zero
     var liveCurrent: CGPoint = .zero
 
-    override var isFlipped: Bool { true }  // top-left origin to match SwiftUI
+    override var isFlipped: Bool { true }           // top-left origin to match SwiftUI
+    override var mouseDownCanMoveWindow: Bool { false } // prevent window drag on canvas
 
     override init(frame: NSRect) {
         super.init(frame: frame)
