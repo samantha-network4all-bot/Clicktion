@@ -32,8 +32,9 @@ install-skills:
 	mkdir -p "$(HOME)/Library/Application Support/Clicktion/skills"
 	cp skills/*.md skills/*.json "$(HOME)/Library/Application Support/Clicktion/skills/"
 
-SUPPORT_DIR := $(HOME)/Library/Application\ Support/Clicktion
-APP_BUNDLE  := Clicktion.app/Contents/MacOS/Clicktion
+SUPPORT_DIR      := $(HOME)/Library/Application\ Support/Clicktion
+APP_BUNDLE       := Clicktion.app/Contents/MacOS/Clicktion
+SIGNING_IDENTITY := Apple Development: arjenkuindersma@gmail.com (C5HQ5K457G)
 
 # Full rebuild + reinstall + relaunch
 dev: go-build swift-release bundle install-skills
@@ -44,7 +45,7 @@ bundle: swift-release go-build
 	mkdir -p Clicktion.app/Contents/MacOS Clicktion.app/Contents/Resources
 	cp .build/release/Clicktion $(APP_BUNDLE)
 	cp clicktion-service/clicktion-service $(SUPPORT_DIR)/clicktion-service
-	codesign --force --sign - --entitlements Clicktion.entitlements --options runtime Clicktion.app
+	codesign --force --sign "$(SIGNING_IDENTITY)" --entitlements Clicktion.entitlements --options runtime Clicktion.app
 
 install-skills:
 	mkdir -p "$(SUPPORT_DIR)/skills" "$(SUPPORT_DIR)/captures"
