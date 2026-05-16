@@ -14,6 +14,15 @@ final class CaptureDialogViewModel: ObservableObject {
     @Published var isSending: Bool = false
     @Published var errorMessage: String?
 
+    // Annotation state
+    @Published var activeTool: AnnotationTool = .none
+    @Published var annotations: [Annotation] = []
+    @Published var textNote: String = ""        // text tool input
+    @Published var croppedImage: NSImage?       // set when rectangle is finalized
+
+    /// The image that will actually be sent — cropped if a rectangle was drawn.
+    var effectiveImage: NSImage { croppedImage ?? capture.image }
+
     private var captureRecord: CaptureRecord?
 
     init(capture: CaptureResult) {
@@ -26,16 +35,45 @@ final class CaptureDialogViewModel: ObservableObject {
         runOCR()
     }
 
+    // MARK: - Annotation actions
+
+    func undo() {
+        guard !annotations.isEmpty else { return }
+        let removed = annotations.removeLast()
+        // If the removed annotation was a rectangle that caused a crop, restore the original
+        if case .rectangle = removed.kind {
+            croppedImage = nil
+            // Re-OCR the full image
+            Task { ocrText = (try? await OCRProcessor.recognize(image: capture.image)) ?? "" }
+        }
+    }
+
+    func rectangleFinalized(_ unitRect: CGRect) {
+        guard let cropped = capture.image.cropping(to: unitRect) else { return }
+        croppedImage = cropped
+        // Invalidate the previous capture record — the image changed
+        captureRecord = nil
+        // Re-OCR the cropped region
+        Task {
+            isOCRRunning = true
+            ocrText = (try? await OCRProcessor.recognize(image: cropped)) ?? ""
+            isOCRRunning = false
+        }
+    }
+
+    func commitTextAnnotation() {
+        let note = textNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !note.isEmpty else { return }
+        // Place text at center of image as a canvas overlay
+        annotations.append(Annotation(kind: .text(note, CGPoint(x: 0.05, y: 0.9))))
+        textNote = ""
+        activeTool = .none
+    }
+
     // MARK: - Send
 
-    /// Called when the user hits Send. Submits the capture if not already done
-    /// (handles the case where the service wasn't ready when OCR finished),
-    /// then starts the LLM job.
     func send(completion: @escaping (String?, Skill?) -> Void) {
-        guard let skill = selectedSkill else {
-            completion(nil, nil)
-            return
-        }
+        guard let skill = selectedSkill else { completion(nil, nil); return }
         isSending = true
         Task {
             defer { isSending = false }
@@ -44,7 +82,6 @@ final class CaptureDialogViewModel: ObservableObject {
                 if let existing = captureRecord {
                     record = existing
                 } else {
-                    // Service wasn't ready during OCR — submit now
                     record = try await doSubmitCapture()
                     captureRecord = record
                 }
@@ -73,12 +110,9 @@ final class CaptureDialogViewModel: ObservableObject {
         }
     }
 
-    /// Best-effort background submit + skill suggestion after OCR.
-    /// If this fails the user can still hit Send, which retries.
     private func submitAndSuggestSkill() async {
         isSuggestingSkill = true
         defer { isSuggestingSkill = false }
-
         do {
             let record = try await doSubmitCapture()
             captureRecord = record
@@ -87,18 +121,26 @@ final class CaptureDialogViewModel: ObservableObject {
                 selectedSkill = match
             }
         } catch {
-            // Non-fatal — user can still Send and the capture will be submitted then
             errorMessage = "Skill suggestion unavailable: \(error.localizedDescription)"
         }
     }
 
     private func doSubmitCapture() async throws -> CaptureRecord {
-        guard let pngData = capture.image.pngData() else {
+        // Composite any freedraw/text annotations onto the image before encoding
+        let imageToSend = annotations.isEmpty
+            ? effectiveImage
+            : effectiveImage.compositing(annotations)
+
+        guard let pngData = imageToSend.pngData() else {
             throw CaptureError.encodingFailed
         }
+
+        // Include text note as extra OCR context if present
+        let combinedOCR = textNote.isEmpty ? ocrText : "\(ocrText)\n\n[User note]\n\(textNote)"
+
         let payload = CapturePayload(
             imageBase64: pngData.base64EncodedString(),
-            ocrText: ocrText,
+            ocrText: combinedOCR,
             appName: capture.appName,
             windowTitle: capture.windowTitle,
             isPrivate: isPrivate,
@@ -113,7 +155,7 @@ final class CaptureDialogViewModel: ObservableObject {
     }
 }
 
-private extension NSImage {
+extension NSImage {
     func pngData() -> Data? {
         guard let tiff = tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiff) else { return nil }

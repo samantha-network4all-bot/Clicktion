@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let kDialogWidth: CGFloat = 672   // 560 × 1.2
+
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
     var onSend: (String?, Skill?) -> Void
@@ -7,24 +9,106 @@ struct CaptureDialogView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            thumbnailSection
+            annotationToolbar
+            thumbnailWithCanvas
             Divider()
             ocrSection
             Divider()
             controlsSection
         }
-        .frame(width: 560)
+        .frame(width: kDialogWidth)
         .onAppear { vm.onAppear() }
     }
 
-    // MARK: - Thumbnail
+    // MARK: - Annotation toolbar
 
-    private var thumbnailSection: some View {
-        Image(nsImage: vm.capture.image)
-            .resizable()
-            .scaledToFit()
-            .frame(maxWidth: 560, maxHeight: 280)
-            .background(Color.black)
+    private var annotationToolbar: some View {
+        HStack(spacing: 8) {
+            ToolbarButton(
+                icon: "rectangle.dashed",
+                label: "Select region",
+                isActive: vm.activeTool == .rectangle
+            ) { vm.activeTool = vm.activeTool == .rectangle ? .none : .rectangle }
+
+            ToolbarButton(
+                icon: "pencil.tip",
+                label: "Draw",
+                isActive: vm.activeTool == .freedraw
+            ) { vm.activeTool = vm.activeTool == .freedraw ? .none : .freedraw }
+
+            ToolbarButton(
+                icon: "textformat",
+                label: "Add note",
+                isActive: vm.activeTool == .text
+            ) { vm.activeTool = vm.activeTool == .text ? .none : .text }
+
+            Spacer()
+
+            if !vm.annotations.isEmpty {
+                Button {
+                    vm.undo()
+                } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+            }
+
+            if vm.croppedImage != nil {
+                Text("Region selected")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    // MARK: - Thumbnail + annotation canvas
+
+    private var thumbnailWithCanvas: some View {
+        ZStack {
+            Image(nsImage: vm.effectiveImage)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: kDialogWidth, maxHeight: kDialogWidth * 0.5)
+                .background(Color.black)
+
+            if vm.activeTool != .none || !vm.annotations.isEmpty {
+                AnnotationCanvasView(
+                    imageSize: vm.effectiveImage.size,
+                    activeTool: $vm.activeTool,
+                    annotations: $vm.annotations,
+                    onRectFinalized: { vm.rectangleFinalized($0) }
+                )
+                .frame(maxWidth: kDialogWidth, maxHeight: kDialogWidth * 0.5)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            // Text tool input — shown as a floating bar at the bottom of the image
+            if vm.activeTool == .text {
+                textNoteBar
+            }
+        }
+    }
+
+    private var textNoteBar: some View {
+        HStack(spacing: 8) {
+            TextField("Add a markdown note…", text: $vm.textNote)
+                .textFieldStyle(.plain)
+                .font(.system(.body, design: .monospaced))
+                .onSubmit { vm.commitTextAnnotation() }
+
+            Button("Add") { vm.commitTextAnnotation() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(vm.textNote.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.regularMaterial)
     }
 
     // MARK: - OCR text
@@ -35,8 +119,7 @@ struct CaptureDialogView: View {
                 if vm.isOCRRunning {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Reading text…")
-                            .foregroundStyle(.secondary)
+                        Text("Reading text…").foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -83,18 +166,11 @@ struct CaptureDialogView: View {
         Group {
             if vm.capture.appName != nil || vm.capture.windowTitle != nil {
                 HStack(spacing: 4) {
-                    Image(systemName: "macwindow")
-                        .foregroundStyle(.secondary)
-                    if let app = vm.capture.appName {
-                        Text(app).fontWeight(.medium)
-                    }
+                    Image(systemName: "macwindow").foregroundStyle(.secondary)
+                    if let app = vm.capture.appName { Text(app).fontWeight(.medium) }
                     if let title = vm.capture.windowTitle {
-                        Text("—")
-                            .foregroundStyle(.secondary)
-                        Text(title)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                        Text("—").foregroundStyle(.secondary)
+                        Text(title).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
                     }
                 }
                 .font(.caption)
@@ -105,11 +181,9 @@ struct CaptureDialogView: View {
 
     private var privacyToggle: some View {
         Toggle(isOn: $vm.isPrivate) {
-            Label(
-                vm.isPrivate ? "Private" : "Public",
-                systemImage: vm.isPrivate ? "lock.fill" : "globe"
-            )
-            .font(.callout)
+            Label(vm.isPrivate ? "Private" : "Public",
+                  systemImage: vm.isPrivate ? "lock.fill" : "globe")
+                .font(.callout)
         }
         .toggleStyle(.checkbox)
         .help(vm.isPrivate
@@ -121,18 +195,13 @@ struct CaptureDialogView: View {
         HStack(spacing: 6) {
             if vm.isSuggestingSkill {
                 ProgressView().controlSize(.small)
-                Text("Analyzing…")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Text("Analyzing…").font(.callout).foregroundStyle(.secondary)
             } else {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
+                Image(systemName: "sparkles").foregroundStyle(.secondary).font(.callout)
                 Picker("Skill", selection: $vm.selectedSkill) {
                     Text("No skill").tag(Optional<Skill>.none)
                     ForEach(vm.availableSkills) { skill in
-                        Label(skill.name, systemImage: skill.icon)
-                            .tag(Optional(skill))
+                        Label(skill.name, systemImage: skill.icon).tag(Optional(skill))
                     }
                 }
                 .labelsHidden()
@@ -143,26 +212,40 @@ struct CaptureDialogView: View {
 
     private var actionButtons: some View {
         HStack {
-            Button("Cancel", role: .cancel) {
-                onCancel()
-            }
-            .keyboardShortcut(.escape, modifiers: [])
-
+            Button("Cancel", role: .cancel) { onCancel() }
+                .keyboardShortcut(.escape, modifiers: [])
             Spacer()
-
             Button {
-                vm.send { jobID, skill in
-                    onSend(jobID, skill)
-                }
+                vm.send { jobID, skill in onSend(jobID, skill) }
             } label: {
-                HStack(spacing: 4) {
-                    Text("Send")
-                    Image(systemName: "arrow.right")
-                }
+                HStack(spacing: 4) { Text("Send"); Image(systemName: "arrow.right") }
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.return, modifiers: [])
             .disabled(vm.isSuggestingSkill || vm.isSending)
         }
+    }
+}
+
+// MARK: - Toolbar button
+
+private struct ToolbarButton: View {
+    let icon: String
+    let label: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(label, systemImage: icon)
+                .font(.caption.weight(isActive ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .help(label)
     }
 }
