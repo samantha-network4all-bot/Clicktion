@@ -68,15 +68,18 @@ final class ChatViewModel: ObservableObject {
                     guard let self else { return }
                     if self.messages.indices.contains(idx) {
                         self.messages[idx].content += token
+                        self.messages[idx].tokenCount += 1
                     }
                 }
                 if messages.indices.contains(idx) {
                     messages[idx].isStreaming = false
+                    messages[idx].streamEnd = Date()
                 }
             } catch {
                 if messages.indices.contains(idx) {
                     messages[idx].content = "Stream error: \(error.localizedDescription)"
                     messages[idx].isStreaming = false
+                    messages[idx].streamEnd = Date()
                 }
             }
             isStreaming = false

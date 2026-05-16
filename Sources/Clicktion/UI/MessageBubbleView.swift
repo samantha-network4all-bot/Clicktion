@@ -10,19 +10,63 @@ struct MessageBubbleView: View {
             if message.role == .user { Spacer(minLength: 60) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
-                ForEach(Array(message.segments.enumerated()), id: \.offset) { _, segment in
-                    segmentView(segment)
-                }
-                if message.isStreaming {
-                    StreamingDotsView()
-                }
+                bubbleContent
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(bubbleBackground)
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            // Assistant bubbles fill available width so text wraps correctly
+            .frame(maxWidth: message.role == .assistant ? .infinity : nil,
+                   alignment: .leading)
 
             if message.role == .assistant { Spacer(minLength: 60) }
+        }
+    }
+
+    // MARK: - Bubble phases
+
+    @ViewBuilder
+    private var bubbleContent: some View {
+        if message.role == .assistant {
+            if message.isStreaming && message.content.isEmpty {
+                // Phase 1 — thinking (no tokens yet)
+                thinkingView
+            } else {
+                // Phase 2 (streaming) or 3 (done) — show content
+                contentSegments
+                if message.isStreaming {
+                    StreamingDotsView()
+                } else {
+                    timingFooter
+                }
+            }
+        } else {
+            // User bubble — plain text only
+            Text(message.content)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(.white)
+        }
+    }
+
+    // MARK: - Thinking animation
+
+    private var thinkingView: some View {
+        HStack(spacing: 8) {
+            ThinkingDotsView()
+            Text("Thinking…")
+                .font(.callout.italic())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Content segments
+
+    @ViewBuilder
+    private var contentSegments: some View {
+        ForEach(Array(message.segments.enumerated()), id: \.offset) { _, segment in
+            segmentView(segment)
         }
     }
 
@@ -33,12 +77,37 @@ struct MessageBubbleView: View {
             Text(text)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .foregroundStyle(message.role == .user ? .white : .primary)
 
         case .code(let language, let body):
             codeBlock(language: language, body: body)
         }
     }
+
+    // MARK: - Timing footer
+
+    @ViewBuilder
+    private var timingFooter: some View {
+        if let elapsed = message.elapsedSeconds {
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                let toks = message.tokenCount
+                let speed = elapsed > 0 ? Double(toks) / elapsed : 0
+                Text(
+                    "\(toks) token\(toks == 1 ? "" : "s") · "
+                    + String(format: "%.1fs", elapsed)
+                    + (speed > 0 ? " · \(Int(speed.rounded())) tok/s" : "")
+                )
+            }
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.top, 2)
+        }
+    }
+
+    // MARK: - Code block
 
     private func codeBlock(language: String?, body: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -86,9 +155,7 @@ struct MessageBubbleView: View {
     private func canRunCommand(_ body: String) -> Bool {
         guard let skill, skill.security.allowCLI else { return false }
         guard message.role == .assistant else { return false }
-        // Only show Run for single-line or clearly shell-like content
-        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty
+        return !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var bubbleBackground: Color {
@@ -99,7 +166,30 @@ struct MessageBubbleView: View {
     }
 }
 
-// Animated streaming indicator
+// MARK: - Thinking animation (pulsing dots before first token)
+
+struct ThinkingDotsView: View {
+    @State private var phase: Int = 0
+    private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3) { i in
+                Circle()
+                    .frame(width: 7, height: 7)
+                    .foregroundStyle(Color.accentColor.opacity(i == phase ? 0.9 : 0.25))
+                    .scaleEffect(i == phase ? 1.15 : 1.0)
+                    .animation(.easeInOut(duration: 0.3), value: phase)
+            }
+        }
+        .onReceive(timer) { _ in
+            phase = (phase + 1) % 3
+        }
+    }
+}
+
+// MARK: - Streaming dots (shown while tokens arrive)
+
 struct StreamingDotsView: View {
     @State private var phase: Int = 0
     private let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
@@ -108,8 +198,8 @@ struct StreamingDotsView: View {
         HStack(spacing: 3) {
             ForEach(0..<3) { i in
                 Circle()
-                    .frame(width: 6, height: 6)
-                    .foregroundStyle(Color.secondary.opacity(i == phase ? 1 : 0.3))
+                    .frame(width: 5, height: 5)
+                    .foregroundStyle(Color.secondary.opacity(i == phase ? 0.8 : 0.2))
             }
         }
         .onReceive(timer) { _ in

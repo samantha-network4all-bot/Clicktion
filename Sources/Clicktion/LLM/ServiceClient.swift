@@ -34,29 +34,19 @@ final class ServiceClient {
     }
 
     func streamJob(id: String, onToken: @escaping (String) -> Void) async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("/api/jobs/\(id)/stream"))
+        var request = URLRequest(url: baseURL.appendingPathComponent("/api/jobs/\(id)/stream"),
+                                 timeoutInterval: .infinity)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let (bytes, _) = try await URLSession.shared.bytes(for: request)
-        // Accumulate consecutive data: lines into one logical event before dispatching.
-        var pendingEvent = ""
         for try await line in bytes.lines {
-            if line.hasPrefix("data: ") {
-                let chunk = String(line.dropFirst(6))
-                if chunk == "[DONE]" {
-                    if !pendingEvent.isEmpty { onToken(pendingEvent); pendingEvent = "" }
-                    break
-                }
-                // sseEscape splits newlines into separate data: lines — reassemble them
-                if pendingEvent.isEmpty {
-                    pendingEvent = chunk
-                } else {
-                    pendingEvent += "\n" + chunk
-                }
-            } else if line.isEmpty && !pendingEvent.isEmpty {
-                // Blank line signals end of SSE event
-                onToken(pendingEvent)
-                pendingEvent = ""
+            guard line.hasPrefix("data: ") else { continue }
+            let payload = String(line.dropFirst(6))
+            if payload == "[DONE]" { break }
+            // Tokens are JSON-encoded strings sent by the server.
+            if let raw = payload.data(using: .utf8),
+               let token = try? JSONDecoder().decode(String.self, from: raw) {
+                onToken(token)
             }
         }
     }

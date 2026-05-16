@@ -38,22 +38,26 @@ final class CaptureDialogViewModel: ObservableObject {
     // MARK: - Annotation actions
 
     func undo() {
-        guard !annotations.isEmpty else { return }
-        let removed = annotations.removeLast()
-        // If the removed annotation was a rectangle that caused a crop, restore the original
-        if case .rectangle = removed.kind {
+        // Undo crop first if one exists
+        if croppedImage != nil {
             croppedImage = nil
-            // Re-OCR the full image
+            captureRecord = nil
             Task { ocrText = (try? await OCRProcessor.recognize(image: capture.image)) ?? "" }
+            return
         }
+        guard !annotations.isEmpty else { return }
+        annotations.removeLast()
     }
 
     func rectangleFinalized(_ unitRect: CGRect) {
+        // Remove the rectangle overlay — the cropped image replaces it visually
+        if case .rectangle = annotations.last?.kind {
+            annotations.removeLast()
+        }
+        activeTool = .none
         guard let cropped = capture.image.cropping(to: unitRect) else { return }
         croppedImage = cropped
-        // Invalidate the previous capture record — the image changed
         captureRecord = nil
-        // Re-OCR the cropped region
         Task {
             isOCRRunning = true
             ocrText = (try? await OCRProcessor.recognize(image: cropped)) ?? ""

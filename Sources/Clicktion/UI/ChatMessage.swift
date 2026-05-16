@@ -5,6 +5,14 @@ struct ChatMessage: Identifiable {
     let role: Role
     var content: String
     var isStreaming: Bool = false
+    var tokenCount: Int = 0
+    var streamStart: Date? = nil
+    var streamEnd: Date? = nil
+
+    var elapsedSeconds: Double? {
+        guard let s = streamStart, let e = streamEnd else { return nil }
+        return e.timeIntervalSince(s)
+    }
 
     enum Role { case user, assistant }
 
@@ -71,6 +79,6 @@ extension ChatMessage {
     }
 
     static func assistantStreaming() -> ChatMessage {
-        ChatMessage(id: UUID(), role: .assistant, content: "", isStreaming: true)
+        ChatMessage(id: UUID(), role: .assistant, content: "", isStreaming: true, streamStart: Date())
     }
 }

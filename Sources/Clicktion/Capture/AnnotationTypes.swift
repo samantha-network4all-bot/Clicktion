@@ -43,17 +43,38 @@ extension NSImage {
     /// Crops to a unit-coordinate rect. Returns nil if rect is degenerate.
     func cropping(to unitRect: CGRect) -> NSImage? {
         guard unitRect.width > 0.01, unitRect.height > 0.01 else { return nil }
-        // NSImage has bottom-left origin; flip Y
+        guard let cgSrc = cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+
+        let cgW = CGFloat(cgSrc.width)
+        let cgH = CGFloat(cgSrc.height)
+        let scaleX = size.width > 0 ? cgW / size.width : 1
+
+        // Convert unit coords (top-left origin) to CGImage pixel coords (bottom-left origin)
         let pixelRect = CGRect(
-            x: unitRect.minX * size.width,
-            y: (1 - unitRect.maxY) * size.height,
-            width: unitRect.width * size.width,
-            height: unitRect.height * size.height
+            x: unitRect.minX * cgW,
+            y: (1 - unitRect.maxY) * cgH,
+            width: unitRect.width * cgW,
+            height: unitRect.height * cgH
         )
-        guard let cgSrc = cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let cropped = cgSrc.cropping(to: pixelRect) else { return nil }
-        return NSImage(cgImage: cropped,
-                       size: CGSize(width: pixelRect.width, height: pixelRect.height))
+
+        // Draw into a new CGContext — avoids the lazy-reference memory leak from CGImage.cropping
+        let w = Int(pixelRect.width.rounded())
+        let h = Int(pixelRect.height.rounded())
+        guard w > 0, h > 0,
+              let ctx = CGContext(data: nil,
+                                  width: w, height: h,
+                                  bitsPerComponent: cgSrc.bitsPerComponent,
+                                  bytesPerRow: 0,
+                                  space: cgSrc.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: cgSrc.bitmapInfo.rawValue) else { return nil }
+
+        ctx.draw(cgSrc, in: CGRect(x: -pixelRect.minX,
+                                   y: -pixelRect.minY,
+                                   width: cgW, height: cgH))
+        guard let newCG = ctx.makeImage() else { return nil }
+
+        let logicalSize = CGSize(width: CGFloat(w) / scaleX, height: CGFloat(h) / scaleX)
+        return NSImage(cgImage: newCG, size: logicalSize)
     }
 }
 

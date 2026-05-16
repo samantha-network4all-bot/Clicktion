@@ -44,7 +44,7 @@ struct CaptureDialogView: View {
 
             Spacer()
 
-            if !vm.annotations.isEmpty {
+            if !vm.annotations.isEmpty || vm.croppedImage != nil {
                 Button {
                     vm.undo()
                 } label: {
@@ -68,13 +68,13 @@ struct CaptureDialogView: View {
 
     // MARK: - Thumbnail + annotation canvas
 
+    private let kThumbnailHeight: CGFloat = kDialogWidth * 0.5
+
     private var thumbnailWithCanvas: some View {
         ZStack {
             Image(nsImage: vm.effectiveImage)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: kDialogWidth, maxHeight: kDialogWidth * 0.5)
-                .background(Color.black)
 
             if vm.activeTool != .none || !vm.annotations.isEmpty {
                 AnnotationCanvasView(
@@ -83,9 +83,11 @@ struct CaptureDialogView: View {
                     annotations: $vm.annotations,
                     onRectFinalized: { vm.rectangleFinalized($0) }
                 )
-                .frame(maxWidth: kDialogWidth, maxHeight: kDialogWidth * 0.5)
             }
         }
+        .frame(width: kDialogWidth, height: kThumbnailHeight)
+        .background(Color.black)
+        .clipped()
         .overlay(alignment: .bottom) {
             // Text tool input — shown as a floating bar at the bottom of the image
             if vm.activeTool == .text {
