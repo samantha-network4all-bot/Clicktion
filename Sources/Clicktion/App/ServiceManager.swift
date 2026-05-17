@@ -30,6 +30,12 @@ final class ServiceManager {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: binaryPath)
         p.environment = ProcessInfo.processInfo.environment
+        p.terminationHandler = { [weak self] _ in
+            // Restart automatically on unexpected exit (e.g. crash or SIGKILL)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                self?.launchProcess()
+            }
+        }
         try? p.run()
         process = p
     }
