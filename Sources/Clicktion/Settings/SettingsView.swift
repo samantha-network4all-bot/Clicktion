@@ -26,7 +26,7 @@ struct SettingsView: View {
                 ProfilesTab()
             }
         }
-        .frame(width: 800, height: 620)
+        .frame(width: 640, height: 600)
     }
 }
 

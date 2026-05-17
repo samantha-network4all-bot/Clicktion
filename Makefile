@@ -24,7 +24,8 @@ swift-release:
 # Bundle the service binary next to the Swift app for local dev
 dev-install: go-build
 	mkdir -p "$(HOME)/Library/Application Support/Clicktion"
-	cp $(SERVICE_BIN) "$(HOME)/Library/Application Support/Clicktion/clicktion-service"
+	cp $(SERVICE_BIN) "$(HOME)/Library/Application Support/Clicktion/clicktion-service.new"
+	mv -f "$(HOME)/Library/Application Support/Clicktion/clicktion-service.new" "$(HOME)/Library/Application Support/Clicktion/clicktion-service"
 	cp -r skills "$(HOME)/Library/Application Support/Clicktion/skills" 2>/dev/null || true
 
 # Install default skills
@@ -44,7 +45,8 @@ dev: go-build swift-release bundle install-skills
 bundle: swift-release go-build
 	mkdir -p Clicktion.app/Contents/MacOS Clicktion.app/Contents/Resources
 	cp .build/release/Clicktion $(APP_BUNDLE)
-	cp clicktion-service/clicktion-service $(SUPPORT_DIR)/clicktion-service
+	cp clicktion-service/clicktion-service $(SUPPORT_DIR)/clicktion-service.new
+	mv -f $(SUPPORT_DIR)/clicktion-service.new $(SUPPORT_DIR)/clicktion-service
 	codesign --force --sign "$(SIGNING_IDENTITY)" --entitlements Clicktion.entitlements --options runtime Clicktion.app
 
 install-skills:

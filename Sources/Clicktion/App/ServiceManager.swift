@@ -11,8 +11,23 @@ final class ServiceManager {
     }
 
     func start() {
+        killStaleService()
         launchProcess()
         Task { await startupSequence() }
+    }
+
+    /// Kill any previously running clicktion-service that survived an unclean
+    /// shutdown. Without this, a stale service holds port 8080 while the new
+    /// spawn loops on "address already in use" — leaving the app talking to an
+    /// outdated binary with missing DB migrations.
+    private func killStaleService() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        task.arguments = ["-f", binaryPath]
+        try? task.run()
+        task.waitUntilExit()
+        // Give the OS a moment to release the port
+        Thread.sleep(forTimeInterval: 0.3)
     }
 
     func stop() {

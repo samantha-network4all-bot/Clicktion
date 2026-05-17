@@ -14,11 +14,10 @@ final class SettingsWindow {
             return
         }
         let controller = NSHostingController(rootView: SettingsView())
-        controller.sizingOptions = []
+        controller.sizingOptions = .preferredContentSize
         let win = NSWindow(contentViewController: controller)
         win.title = "Settings"
         win.styleMask = [.titled, .closable]
-        win.setContentSize(NSSize(width: 360, height: 560))
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
