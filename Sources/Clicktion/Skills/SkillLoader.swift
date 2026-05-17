@@ -35,13 +35,16 @@ final class SkillLoader {
             security = .safe
         }
 
+        let inputMode = frontmatter["input_mode"].flatMap { Skill.InputMode(rawValue: $0) } ?? .imageAndText
+
         return Skill(
             name: frontmatter["name"] ?? mdURL.deletingPathExtension().lastPathComponent,
             icon: frontmatter["icon"] ?? "sparkles",
             triggers: frontmatter["triggers"]?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? [],
             systemPrompt: body,
             security: security,
-            filename: mdURL.deletingPathExtension().lastPathComponent
+            filename: mdURL.deletingPathExtension().lastPathComponent,
+            inputMode: inputMode
         )
     }
 
@@ -54,6 +57,7 @@ final class SkillLoader {
         name: \(skill.name)
         icon: \(skill.icon)
         triggers: \(skill.triggers.joined(separator: ", "))
+        input_mode: \(skill.inputMode.rawValue)
         ---
 
         \(skill.systemPrompt)

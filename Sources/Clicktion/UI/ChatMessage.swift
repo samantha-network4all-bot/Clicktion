@@ -4,6 +4,7 @@ struct ChatMessage: Identifiable {
     let id: UUID
     let role: Role
     var content: String
+    var thinking: String = ""   // reasoning_content from thinking models
     var isStreaming: Bool = false
     var tokenCount: Int = 0
     var streamStart: Date? = nil

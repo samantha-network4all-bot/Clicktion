@@ -8,6 +8,7 @@ type Job struct {
 	ModelID     *string
 	SkillName   *string
 	SkillPrompt *string
+	SendImage   bool // whether to include the screenshot in the LLM request
 	Status      string // pending | running | done | failed
 	CreatedAt   time.Time
 	FinishedAt  *time.Time
@@ -36,23 +37,29 @@ type LLMLog struct {
 
 func (d *DB) CreateJob(j Job) (Job, error) {
 	j.ID = newID()
+	sendImage := 1
+	if !j.SendImage {
+		sendImage = 0
+	}
 	_, err := d.sql.Exec(`
-		INSERT INTO jobs (id, capture_id, model_id, skill_name, skill_prompt, status)
-		VALUES (?, ?, ?, ?, ?, 'pending')`,
-		j.ID, j.CaptureID, j.ModelID, j.SkillName, j.SkillPrompt)
+		INSERT INTO jobs (id, capture_id, model_id, skill_name, skill_prompt, send_image, status)
+		VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+		j.ID, j.CaptureID, j.ModelID, j.SkillName, j.SkillPrompt, sendImage)
 	return j, err
 }
 
 func (d *DB) GetJob(id string) (*Job, error) {
 	var j Job
+	var sendImage int
 	err := d.sql.QueryRow(`
-		SELECT id, capture_id, model_id, skill_name, skill_prompt, status, created_at, finished_at
+		SELECT id, capture_id, model_id, skill_name, skill_prompt, send_image, status, created_at, finished_at
 		FROM jobs WHERE id = ?`, id).Scan(
-		&j.ID, &j.CaptureID, &j.ModelID, &j.SkillName, &j.SkillPrompt,
+		&j.ID, &j.CaptureID, &j.ModelID, &j.SkillName, &j.SkillPrompt, &sendImage,
 		&j.Status, &j.CreatedAt, &j.FinishedAt)
 	if err != nil {
 		return nil, err
 	}
+	j.SendImage = sendImage != 0
 	return &j, nil
 }
 

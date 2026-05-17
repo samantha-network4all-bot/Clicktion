@@ -7,62 +7,69 @@ import (
 	"log"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/clicktion/service/internal/db"
 	"github.com/clicktion/service/internal/llm"
+	"sync"
 )
 
-// jobStream holds buffered tokens for an active LLM call.
-// SSE handlers poll this; it is removed from activeStreams when done.
+// jobStream delivers tokens immediately via a channel.
+// Closed when the LLM finishes or errors out.
 type jobStream struct {
-	mu     sync.Mutex
-	tokens []string
-	done   bool
-	err    error
+	ch  chan string
+	mu  sync.Mutex
+	err error
+}
+
+func newJobStream() *jobStream {
+	return &jobStream{ch: make(chan string, 512)}
 }
 
 func (s *jobStream) push(token string) {
-	s.mu.Lock()
-	s.tokens = append(s.tokens, token)
-	s.mu.Unlock()
+	select {
+	case s.ch <- token:
+	default:
+		// Buffer full — drop token rather than blocking the LLM goroutine.
+		// The SSE client will see gaps but won't deadlock.
+	}
 }
 
-func (s *jobStream) snapshot() ([]string, bool) {
+func (s *jobStream) finish(err error) {
+	s.mu.Lock()
+	s.err = err
+	s.mu.Unlock()
+	close(s.ch)
+}
+
+func (s *jobStream) streamErr() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]string, len(s.tokens))
-	copy(out, s.tokens)
-	return out, s.done
+	return s.err
 }
 
 var activeStreams sync.Map // string(jobID) → *jobStream
 
-// runJob executes the LLM call for a job in a goroutine.
-// It tries each model in the fallback chain.
+// runJob registers the stream immediately (before the goroutine starts) to
+// eliminate the race where the SSE client connects before Store is called.
 func (h *handler) runJob(jobID string) {
+	stream := newJobStream()
+	activeStreams.Store(jobID, stream)
+
 	go func() {
+		defer activeStreams.Delete(jobID)
+
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
-		stream := &jobStream{}
-		activeStreams.Store(jobID, stream)
-		defer activeStreams.Delete(jobID)
-
 		if err := h.executeJob(ctx, jobID, stream); err != nil {
 			log.Printf("job %s failed: %v", jobID, err)
-			stream.mu.Lock()
-			stream.err = err
-			stream.done = true
-			stream.mu.Unlock()
+			stream.finish(err)
 			h.db.UpdateJobStatus(jobID, "failed")
 			return
 		}
 
-		stream.mu.Lock()
-		stream.done = true
-		stream.mu.Unlock()
+		stream.finish(nil)
 		h.db.UpdateJobStatus(jobID, "done")
 	}()
 }
@@ -77,13 +84,11 @@ func (h *handler) executeJob(ctx context.Context, jobID string, stream *jobStrea
 		return err
 	}
 
-	// Build message history
 	history, err := h.db.ListChatMessages(job.CaptureID)
 	if err != nil {
 		return err
 	}
 
-	// Pick model — enforce local-only for private captures
 	models, err := h.db.FallbackChain(capture.IsPrivate)
 	if err != nil || len(models) == 0 {
 		return fmt.Errorf("no suitable model configured")
@@ -105,7 +110,6 @@ func (h *handler) executeJob(ctx context.Context, jobID string, stream *jobStrea
 		}
 		lastErr = err
 		log.Printf("model %s failed for job %s: %v — trying fallback", model.Name, jobID, err)
-		// Notify via a special SSE token that we're falling back
 		stream.push("[FALLBACK:" + model.Name + "]")
 	}
 	return lastErr
@@ -120,40 +124,37 @@ func (h *handler) streamWithModel(
 	stream *jobStream,
 	isFallback bool,
 ) (llm.StreamResult, error) {
-	messages := buildMessages(job, capture, history)
+	messages := buildMessages(job, capture, history, job.SendImage)
 
 	var fullResponse string
 	result, err := client.Stream(ctx, messages, func(token string) {
-		fullResponse += token
+		if !strings.HasPrefix(token, "\x01") {
+			fullResponse += token
+		}
 		stream.push(token)
 	})
 	if err != nil {
 		return result, err
 	}
 
-	// Persist the assistant response
 	h.db.AddChatMessage(db.ChatMessage{
 		CaptureID: job.CaptureID,
 		Role:      "assistant",
-		Content:   fullResponse,
+		Content:   strings.TrimSpace(fullResponse),
 	})
 
 	return result, nil
 }
 
-func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage) []llm.Message {
+func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, sendImage bool) []llm.Message {
 	var messages []llm.Message
 
-	// System prompt from the skill
 	if job.SkillPrompt != nil && *job.SkillPrompt != "" {
 		messages = append(messages, llm.TextMessage(llm.RoleSystem, *job.SkillPrompt))
 	}
 
-	// Always inject the capture context + screenshot as the first user message.
-	// This ensures the model always receives the image, even when history exists
-	// (e.g. follow-up questions in the same thread).
 	text := buildCaptureContext(capture)
-	if capture.ImagePath != "" {
+	if sendImage && capture.ImagePath != "" {
 		imgData, err := os.ReadFile(capture.ImagePath)
 		if err == nil {
 			imgBase64 := base64.StdEncoding.EncodeToString(imgData)
@@ -166,8 +167,6 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage) [
 		messages = append(messages, llm.TextMessage(llm.RoleUser, text))
 	}
 
-	// Append genuine conversation history (user + assistant turns only).
-	// Skip "system" meta-messages that were never real conversation turns.
 	for _, m := range history {
 		if m.Role == "system" {
 			continue

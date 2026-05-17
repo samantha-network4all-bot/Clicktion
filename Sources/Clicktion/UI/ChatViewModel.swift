@@ -63,21 +63,28 @@ final class ChatViewModel: ObservableObject {
         messages.append(.assistantStreaming())
 
         Task {
+            var content = ""
+            var thinking = ""
+            var tokenCount = 0
             do {
-                try await ServiceClient.shared.streamJob(id: jobID) { [weak self] token in
-                    guard let self else { return }
-                    if self.messages.indices.contains(idx) {
-                        self.messages[idx].content += token
-                        self.messages[idx].tokenCount += 1
+                try await ServiceClient.shared.streamJob(id: jobID) { token in
+                    if token.hasPrefix("\u{01}") {
+                        thinking += String(token.dropFirst())
+                    } else {
+                        content += token
+                        tokenCount += 1
                     }
                 }
                 if messages.indices.contains(idx) {
+                    messages[idx].content = content
+                    messages[idx].thinking = thinking
+                    messages[idx].tokenCount = tokenCount
                     messages[idx].isStreaming = false
                     messages[idx].streamEnd = Date()
                 }
             } catch {
                 if messages.indices.contains(idx) {
-                    messages[idx].content = "Stream error: \(error.localizedDescription)"
+                    messages[idx].content = "Error: \(error.localizedDescription)"
                     messages[idx].isStreaming = false
                     messages[idx].streamEnd = Date()
                 }

@@ -85,6 +85,23 @@ struct SkillDetailView: View {
                     TriggerChipsView(triggers: draft.triggers)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Send to LLM", systemImage: "square.and.arrow.up")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("", selection: $draft.inputMode) {
+                    ForEach(Skill.InputMode.allCases, id: \.self) { mode in
+                        Label(mode.displayName, systemImage: mode.icon).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text(draft.inputMode == .textOnly
+                     ? "The screenshot will not be sent — useful for text-only models or to save tokens."
+                     : "Both the screenshot and OCR text are sent to the model.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

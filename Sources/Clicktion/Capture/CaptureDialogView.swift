@@ -60,6 +60,12 @@ struct CaptureDialogView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            CopyButton(help: "Copy image to clipboard") {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.writeObjects([vm.effectiveImage])
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -141,6 +147,13 @@ struct CaptureDialogView: View {
         }
         .frame(height: 110)
         .background(Color(nsColor: .textBackgroundColor))
+        .overlay(alignment: .topTrailing) {
+            CopyButton(help: "Copy text to clipboard", disabled: vm.ocrText.isEmpty || vm.isOCRRunning) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(vm.ocrText, forType: .string)
+            }
+            .padding(4)
+        }
     }
 
     // MARK: - Controls
@@ -159,9 +172,42 @@ struct CaptureDialogView: View {
                 Spacer()
                 skillPicker
             }
+            .onChange(of: vm.selectedSkill) { _, skill in vm.skillDidChange(skill) }
+            inputModePicker
             actionButtons
         }
         .padding(16)
+    }
+
+    private var inputModePicker: some View {
+        HStack(spacing: 0) {
+            inputModeOption(
+                label: "Image + text",
+                icon: "photo",
+                selected: vm.sendImage
+            ) { vm.sendImage = true }
+
+            inputModeOption(
+                label: "Text only",
+                icon: "doc.text",
+                selected: !vm.sendImage
+            ) { vm.sendImage = false }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor)))
+    }
+
+    private func inputModeOption(label: String, icon: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: icon)
+                .font(.callout.weight(selected ? .semibold : .regular))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .background(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
     }
 
     private var sourceInfo: some View {
@@ -226,6 +272,30 @@ struct CaptureDialogView: View {
             .keyboardShortcut(.return, modifiers: [])
             .disabled(vm.isSuggestingSkill || vm.isSending)
         }
+    }
+}
+
+// MARK: - Copy button
+
+private struct CopyButton: View {
+    let help: String
+    var disabled: Bool = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "doc.on.doc")
+                .font(.caption)
+                .padding(6)
+                .background(hovering && !disabled ? Color.secondary.opacity(0.15) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .foregroundStyle(hovering && !disabled ? Color.primary.opacity(0.75) : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .onHover { hovering = $0 }
+        .help(help)
     }
 }
 

@@ -39,33 +39,42 @@ final class ServiceClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let (bytes, _) = try await URLSession.shared.bytes(for: request)
+        // SSE events may span multiple data: lines (sseEscape splits \n into
+        // consecutive data: lines). Accumulate them before dispatching.
+        var pending = ""
         for try await line in bytes.lines {
-            guard line.hasPrefix("data: ") else { continue }
-            let payload = String(line.dropFirst(6))
-            if payload == "[DONE]" { break }
-            // Tokens are JSON-encoded strings sent by the server.
-            if let raw = payload.data(using: .utf8),
-               let token = try? JSONDecoder().decode(String.self, from: raw) {
-                onToken(token)
+            if line.hasPrefix("data: ") {
+                let chunk = String(line.dropFirst(6))
+                if chunk == "[DONE]" {
+                    if !pending.isEmpty { onToken(pending); pending = "" }
+                    break
+                }
+                pending = pending.isEmpty ? chunk : pending + "\n" + chunk
+            } else if line.isEmpty, !pending.isEmpty {
+                onToken(pending)
+                pending = ""
             }
         }
     }
 
-    func startJob(captureID: String, skill: Skill) async throws -> JobRecord {
+    func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil) async throws -> JobRecord {
         struct Body: Encodable {
             let captureID: String
             let skillName: String
             let skillPrompt: String
+            let sendImage: Bool
             enum CodingKeys: String, CodingKey {
                 case captureID = "capture_id"
                 case skillName = "skill_name"
                 case skillPrompt = "skill_prompt"
+                case sendImage = "send_image"
             }
         }
         return try await post("/api/jobs", body: Body(
             captureID: captureID,
             skillName: skill.name,
-            skillPrompt: skill.systemPrompt
+            skillPrompt: skill.systemPrompt,
+            sendImage: sendImage ?? (skill.inputMode == .imageAndText)
         ))
     }
 

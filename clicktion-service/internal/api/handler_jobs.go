@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/clicktion/service/internal/db"
 )
@@ -13,6 +13,7 @@ type createJobRequest struct {
 	CaptureID   string `json:"capture_id"`
 	SkillName   string `json:"skill_name"`
 	SkillPrompt string `json:"skill_prompt"`
+	SendImage   *bool  `json:"send_image"` // nil → default true (backward compat)
 }
 
 type jobResponse struct {
@@ -37,10 +38,12 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 
 	skillName := req.SkillName
 	skillPrompt := req.SkillPrompt
+	sendImage := req.SendImage == nil || *req.SendImage // default true
 	job, err := h.db.CreateJob(db.Job{
 		CaptureID:   req.CaptureID,
 		SkillName:   &skillName,
 		SkillPrompt: &skillPrompt,
+		SendImage:   sendImage,
 	})
 	if err != nil {
 		httpError(w, err, http.StatusInternalServerError)
@@ -72,30 +75,23 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// Check for an active in-memory stream
+	// Check for an active in-memory stream — read from channel immediately as tokens arrive.
 	if val, ok := activeStreams.Load(id); ok {
 		s := val.(*jobStream)
-		idx := 0
-		ticker := time.NewTicker(50 * time.Millisecond)
-		defer ticker.Stop()
-
+		ctx := r.Context()
 		for {
 			select {
-			case <-r.Context().Done():
+			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				tokens, done := s.snapshot()
-				for idx < len(tokens) {
-					data, _ := json.Marshal(tokens[idx])
-					fmt.Fprintf(w, "data: %s\n\n", data)
-					idx++
-				}
-				flusher.Flush()
-				if done {
+			case token, ok := <-s.ch:
+				if !ok {
+					// Channel closed — stream finished
 					fmt.Fprintf(w, "data: [DONE]\n\n")
 					flusher.Flush()
 					return
 				}
+				fmt.Fprintf(w, "data: %s\n\n", sseEscape(token))
+				flusher.Flush()
 			}
 		}
 	}
@@ -114,8 +110,7 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, m := range messages {
 		if m.Role == "assistant" && m.Content != "" {
-			data, _ := json.Marshal(m.Content)
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			fmt.Fprintf(w, "data: %s\n\n", sseEscape(m.Content))
 			flusher.Flush()
 		}
 	}
@@ -152,5 +147,11 @@ func (h *handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	h.runJob(id)
 
 	jsonOK(w, map[string]string{"status": "queued"})
+}
+
+// sseEscape makes a string safe for SSE data fields by replacing newlines
+// with the multi-line SSE continuation sequence.
+func sseEscape(s string) string {
+	return strings.ReplaceAll(s, "\n", "\ndata: ")
 }
 

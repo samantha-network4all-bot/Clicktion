@@ -8,9 +8,11 @@ struct Skill: Identifiable, Codable, Hashable {
     var systemPrompt: String
     var security: SkillSecurity
     var filename: String
+    var inputMode: InputMode = .imageAndText
 
     init(id: UUID = UUID(), name: String, icon: String, triggers: [String],
-         systemPrompt: String, security: SkillSecurity, filename: String) {
+         systemPrompt: String, security: SkillSecurity, filename: String,
+         inputMode: InputMode = .imageAndText) {
         self.id = id
         self.name = name
         self.icon = icon
@@ -18,6 +20,26 @@ struct Skill: Identifiable, Codable, Hashable {
         self.systemPrompt = systemPrompt
         self.security = security
         self.filename = filename
+        self.inputMode = inputMode
+    }
+
+    enum InputMode: String, Codable, CaseIterable, Hashable {
+        case imageAndText = "image_and_text"
+        case textOnly = "text_only"
+
+        var displayName: String {
+            switch self {
+            case .imageAndText: return "Image + OCR text"
+            case .textOnly:     return "OCR text only"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .imageAndText: return "photo.badge.checkmark"
+            case .textOnly:     return "doc.text"
+            }
+        }
     }
 }
 

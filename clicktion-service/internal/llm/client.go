@@ -120,6 +120,8 @@ func (c *Client) Stream(ctx context.Context, messages []Message, onToken func(st
 
 	var result StreamResult
 	scanner := bufio.NewScanner(resp.Body)
+	// Increase buffer for large chunks (vision models can have big payloads)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
@@ -129,7 +131,12 @@ func (c *Client) Stream(ctx context.Context, messages []Message, onToken func(st
 		if data == "[DONE]" {
 			break
 		}
-		token, usage := parseChunk(data)
+		token, thinkToken, usage := parseChunk(data)
+		// Thinking tokens (reasoning_content) are prefixed with \x01 so the
+		// Swift client can route them to the "thinking" display area.
+		if thinkToken != "" {
+			onToken("\x01" + thinkToken)
+		}
 		if token != "" {
 			result.FullText += token
 			result.CompletionTokens++
@@ -188,11 +195,12 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (string, erro
 	return strings.TrimSpace(payload.Choices[0].Message.Content), nil
 }
 
-// chunk shapes from OpenAI SSE
+// chunk shapes from OpenAI SSE (supports Qwen3-style reasoning_content)
 type chunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
@@ -204,13 +212,14 @@ type usageInfo struct {
 	CompletionTokens int `json:"completion_tokens"`
 }
 
-func parseChunk(data string) (token string, usage *usageInfo) {
+func parseChunk(data string) (token, thinkToken string, usage *usageInfo) {
 	var c chunk
 	if err := json.Unmarshal([]byte(data), &c); err != nil {
-		return "", nil
+		return "", "", nil
 	}
 	if len(c.Choices) > 0 {
 		token = c.Choices[0].Delta.Content
+		thinkToken = c.Choices[0].Delta.ReasoningContent
 	}
-	return token, c.Usage
+	return token, thinkToken, c.Usage
 }

@@ -1,7 +1,13 @@
 import SwiftUI
 
+private struct ListWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
+    @State private var listWidth: CGFloat = 540
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,7 +86,7 @@ struct ChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     ForEach(vm.messages) { message in
                         MessageBubbleView(
                             message: message,
@@ -91,7 +97,21 @@ struct ChatView: View {
                         .id(message.id)
                     }
                 }
-                .padding(14)
+                // padding first, then frame: the frame constrains total width to listWidth,
+                // so the VStack is offered listWidth-32, giving Text a concrete pixel width.
+                .padding(16)
+                .frame(width: listWidth, alignment: .leading)
+            }
+            // background GeometryReader measures the ScrollView's own viewport width —
+            // the only reliable way to get a concrete width on macOS where ScrollView
+            // proposes unconstrained width to its content.
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: ListWidthKey.self, value: geo.size.width)
+                }
+            )
+            .onPreferenceChange(ListWidthKey.self) { w in
+                if w > 0 { listWidth = w }
             }
             .onChange(of: vm.messages.count) { _, _ in
                 if let last = vm.messages.last {
@@ -100,7 +120,6 @@ struct ChatView: View {
                     }
                 }
             }
-            // Also scroll when the last message content grows during streaming
             .onChange(of: vm.messages.last?.content) { _, _ in
                 if let last = vm.messages.last {
                     proxy.scrollTo(last.id, anchor: .bottom)

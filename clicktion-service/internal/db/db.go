@@ -36,6 +36,7 @@ func (d *DB) Migrate() error {
 func (d *DB) runMigrations() error {
 	alters := []string{
 		`ALTER TABLE jobs ADD COLUMN skill_prompt TEXT`,
+		`ALTER TABLE jobs ADD COLUMN send_image INTEGER NOT NULL DEFAULT 1`,
 	}
 	for _, stmt := range alters {
 		if _, err := d.sql.Exec(stmt); err != nil {
