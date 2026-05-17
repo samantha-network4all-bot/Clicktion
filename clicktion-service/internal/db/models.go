@@ -95,23 +95,49 @@ func (d *DB) FallbackChain(localOnly bool) ([]Model, error) {
 
 func (d *DB) CreateModel(m Model) (Model, error) {
 	m.ID = newID()
-	_, err := d.sql.Exec(`
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return m, err
+	}
+	defer tx.Rollback()
+	if m.IsDefault {
+		if _, err = tx.Exec(`UPDATE models SET is_default = 0`); err != nil {
+			return m, err
+		}
+	}
+	_, err = tx.Exec(`
 		INSERT INTO models (id, name, base_url, api_key, model_name,
 		                    is_local, is_local_override, is_default, fallback_order)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		m.ID, m.Name, m.BaseURL, m.APIKey, m.ModelName,
 		m.IsLocal, m.IsLocalOverride, m.IsDefault, m.FallbackOrder)
-	return m, err
+	if err != nil {
+		return m, err
+	}
+	return m, tx.Commit()
 }
 
 func (d *DB) UpdateModel(m Model) error {
-	_, err := d.sql.Exec(`
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if m.IsDefault {
+		if _, err = tx.Exec(`UPDATE models SET is_default = 0 WHERE id != ?`, m.ID); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(`
 		UPDATE models SET name=?, base_url=?, api_key=?, model_name=?,
 		                  is_local=?, is_local_override=?, is_default=?, fallback_order=?
 		WHERE id=?`,
 		m.Name, m.BaseURL, m.APIKey, m.ModelName,
 		m.IsLocal, m.IsLocalOverride, m.IsDefault, m.FallbackOrder, m.ID)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (d *DB) DeleteModel(id string) error {
