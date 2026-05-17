@@ -8,6 +8,7 @@ private struct ListWidthKey: PreferenceKey {
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
     @State private var listWidth: CGFloat = 540
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,7 +19,17 @@ struct ChatView: View {
             inputBar
         }
         .frame(minWidth: 540, minHeight: 440)
-        .onAppear { vm.onAppear() }
+        .onAppear {
+            vm.onAppear()
+            // Slight delay so the window has finished its activation handoff
+            // before we grab first responder — otherwise AppKit can steal it back.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                inputFocused = true
+            }
+        }
+        .onChange(of: vm.isStreaming) { _, streaming in
+            if !streaming { inputFocused = true }
+        }
         .alert("Run this command?", isPresented: $vm.showCommandWarning) {
             Button("Cancel", role: .cancel) { vm.cancelRunCommand() }
             Button("Run", role: .destructive) { vm.confirmRunCommand() }
@@ -135,6 +146,7 @@ struct ChatView: View {
         HStack(spacing: 8) {
             TextField("Follow-up message…", text: $vm.inputText)
                 .textFieldStyle(.plain)
+                .focused($inputFocused)
                 .onSubmit { vm.sendMessage() }
                 .disabled(vm.isStreaming)
 
