@@ -28,7 +28,7 @@ struct SkillEditorView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 780, minHeight: 520)
+        .frame(minWidth: 860, minHeight: 520)
         .onAppear { vm.load() }
         .alert("Unsaved Changes", isPresented: $showDiscardAlert) {
             Button("Discard", role: .destructive) {
@@ -60,6 +60,7 @@ struct SkillEditorView: View {
                 .onTapGesture { switchTo(skill.id) }
         }
         .listStyle(.sidebar)
+        .frame(minWidth: 220)
         .navigationTitle("Skills")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -123,48 +124,8 @@ struct SkillRowView: View {
     let skill: Skill
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: skill.icon)
-                .frame(width: 22, height: 22)
-                .foregroundStyle(Color.accentColor)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(skill.name)
-                    .font(.body)
-                if !skill.triggers.isEmpty {
-                    Text(skill.triggers.prefix(3).joined(separator: ", "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            if skill.security.dangerLevel != .none {
-                dangerBadge(skill.security.dangerLevel)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    @ViewBuilder
-    private func dangerBadge(_ level: SkillSecurity.DangerLevel) -> some View {
-        Text(level.rawValue)
-            .font(.system(size: 10, weight: .semibold))
-            .padding(.horizontal, 5)
+        Text(skill.name)
+            .font(.body)
             .padding(.vertical, 2)
-            .background(dangerColor(level).opacity(0.12))
-            .foregroundStyle(dangerColor(level))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-    }
-
-    private func dangerColor(_ level: SkillSecurity.DangerLevel) -> Color {
-        switch level {
-        case .none:   return .clear
-        case .low:    return .blue
-        case .medium: return .orange
-        case .high:   return .red
-        }
     }
 }
