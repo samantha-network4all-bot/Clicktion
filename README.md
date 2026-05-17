@@ -35,6 +35,20 @@ On first launch, a setup wizard walks you through:
 
 ---
 
+## Capture dialog
+
+When you capture a screenshot, a dialog appears before the capture is sent to the LLM:
+
+| Area | Description |
+|------|-------------|
+| **Annotation toolbar** | Draw (freehand), add a text note, or select a region to crop |
+| **Thumbnail** | Preview of the screenshot (or cropped region). Copy-to-clipboard button sits in the sidebar to the right |
+| **OCR text** | Extracted text, selectable. Copy-to-clipboard button in the top-right corner |
+| **Bottom bar** | Choose a skill (✦), then Cancel or **Action →** to send |
+| **Advanced** | Collapsible section with the privacy toggle (local-only vs. remote LLM) and image mode (Image + text / Text only) |
+
+---
+
 ## Adding an LLM model
 
 Clicktion works with any OpenAI-compatible endpoint. Open **Manage Models…** from the menu bar icon to add models via the web admin UI.
@@ -59,6 +73,7 @@ Clicktion/
 │   ├── App/                    # Entry point, AppDelegate, AppState, ServiceManager
 │   ├── Capture/                # ScreenCaptureKit, OCR, capture dialog
 │   ├── LLM/                    # ServiceClient, ModelConfig
+│   ├── Settings/               # SettingsView, SettingsWindow
 │   ├── Skills/                 # Skill model, loader, editor views
 │   └── UI/                     # Menu, chat window, setup wizard
 ├── clicktion-service/          # Go backend service
@@ -106,6 +121,18 @@ With the app running, open these in any browser:
 | `http://localhost:8080/admin/models` | Add / edit / test / delete LLM models |
 | `http://localhost:8080/admin/keys` | Manage API keys |
 | `http://localhost:8080/admin/storage` | Storage stats and bulk cleanup |
+
+---
+
+## Settings
+
+Open **Settings…** from the menu bar icon (above Quit) to configure app-wide defaults.
+
+| Setting | Description |
+|---------|-------------|
+| **Response language** | The language the LLM will always reply in. Defaults to the system language detected at first launch. Appended to every skill prompt as `- You need to reply in <language>.` |
+
+The full list of ~180 ISO languages is available with a live search field. The selection persists across launches.
 
 ---
 
