@@ -16,13 +16,12 @@ final class AppState: ObservableObject {
 
     /// Display name of the language the LLM should reply in (e.g. "English", "Dutch").
     /// Defaults to the system language on first run.
-    var responseLanguage: String {
-        get {
-            if let stored = UserDefaults.standard.string(forKey: "responseLanguage") { return stored }
-            let code = Locale.current.language.languageCode?.identifier ?? "en"
-            return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
-        }
-        set { UserDefaults.standard.set(newValue, forKey: "responseLanguage") }
+    @Published var responseLanguage: String = {
+        if let stored = UserDefaults.standard.string(forKey: "responseLanguage") { return stored }
+        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
+    }() {
+        didSet { UserDefaults.standard.set(responseLanguage, forKey: "responseLanguage") }
     }
 
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
