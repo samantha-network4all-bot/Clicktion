@@ -67,6 +67,9 @@ struct MenuView: View {
                 openArchive()
             }
             Divider().padding(.vertical, 4)
+            MenuAction(label: "Settings…", icon: "gearshape") {
+                SettingsWindow.shared.show()
+            }
             MenuAction(label: "Quit Clicktion", icon: "power") {
                 NSApplication.shared.terminate(nil)
             }

@@ -14,6 +14,17 @@ final class AppState: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedSetup") }
     }
 
+    /// Display name of the language the LLM should reply in (e.g. "English", "Dutch").
+    /// Defaults to the system language on first run.
+    var responseLanguage: String {
+        get {
+            if let stored = UserDefaults.standard.string(forKey: "responseLanguage") { return stored }
+            let code = Locale.current.language.languageCode?.identifier ?? "en"
+            return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "responseLanguage") }
+    }
+
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
     // code-signature ACL prompts that Keychain triggers for ad-hoc signed binaries.
     // The key only authenticates to the local clicktion-service — not a user credential.

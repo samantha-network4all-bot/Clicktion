@@ -70,10 +70,12 @@ final class ServiceClient {
                 case sendImage = "send_image"
             }
         }
+        let language = AppState.shared.responseLanguage
+        let prompt = skill.systemPrompt + "\n- You need to reply in \(language)."
         return try await post("/api/jobs", body: Body(
             captureID: captureID,
             skillName: skill.name,
-            skillPrompt: skill.systemPrompt,
+            skillPrompt: prompt,
             sendImage: sendImage ?? (skill.inputMode == .imageAndText)
         ))
     }
