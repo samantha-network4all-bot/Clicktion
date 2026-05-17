@@ -27,6 +27,12 @@ final class ServiceClient {
         try await post("/api/models/\(id.uuidString)/test", body: EmptyBody())
     }
 
+    /// Sets the given model as default and returns the refreshed list with is_default updated.
+    @discardableResult
+    func setDefaultModel(id: UUID) async throws -> [ModelConfig] {
+        try await post("/api/models/\(id.uuidString)/setdefault", body: EmptyBody())
+    }
+
     // MARK: - Captures
 
     func submitCapture(_ payload: CapturePayload) async throws -> CaptureRecord {

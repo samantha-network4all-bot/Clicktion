@@ -95,6 +95,25 @@ func (h *handler) updateModel(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, j)
 }
 
+func (h *handler) setDefaultModelAPI(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := h.db.SetDefaultModel(id); err != nil {
+		httpError(w, err, http.StatusInternalServerError)
+		return
+	}
+	// Return updated full list so callers can refresh in one round-trip.
+	models, err := h.db.ListModels()
+	if err != nil {
+		httpError(w, err, http.StatusInternalServerError)
+		return
+	}
+	out := make([]modelJSON, len(models))
+	for i, m := range models {
+		out[i] = modelToJSON(m)
+	}
+	jsonOK(w, out)
+}
+
 func (h *handler) deleteModel(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := h.db.DeleteModel(id); err != nil {

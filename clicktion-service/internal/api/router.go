@@ -37,6 +37,7 @@ func apiRoutes(h *handler) http.Handler {
 	mux.HandleFunc("PUT /models/{id}", h.updateModel)
 	mux.HandleFunc("DELETE /models/{id}", h.deleteModel)
 	mux.HandleFunc("POST /models/{id}/test", h.testModel)
+	mux.HandleFunc("POST /models/{id}/setdefault", h.setDefaultModelAPI)
 
 	// Captures
 	mux.HandleFunc("POST /captures", h.createCapture)

@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject private var state = AppState.shared
     @State private var search = ""
+    @State private var models: [ModelConfig] = []
+    @State private var defaultModelID: UUID? = nil
 
     // All ISO languages with English display names, sorted alphabetically.
     private static let allLanguages: [(code: String, name: String)] = {
@@ -37,6 +39,36 @@ struct SettingsView: View {
 
             Divider()
 
+            ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+
+            // Default model section
+            if !models.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Default model")
+                            .font(.subheadline).fontWeight(.medium)
+                        Text("Used for all captures unless overridden.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Picker("Default model", selection: $defaultModelID) {
+                        ForEach(models) { model in
+                            Text(model.name).tag(Optional(model.id))
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: defaultModelID) { _, newID in
+                        guard let id = newID else { return }
+                        Task {
+                            if let updated = try? await ServiceClient.shared.setDefaultModel(id: id) {
+                                models = updated
+                            }
+                        }
+                    }
+                }
+                Divider()
+            }
+
             // Response Language section
             VStack(alignment: .leading, spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -54,9 +86,18 @@ struct SettingsView: View {
 
                 languageList
             }
+
+            } // end inner VStack
             .padding(16)
+            } // end ScrollView
         }
-        .frame(width: 360, height: 500)
+        .frame(width: 360, height: 520)
+        .task {
+            if let loaded = try? await ServiceClient.shared.fetchModels() {
+                models = loaded
+                defaultModelID = loaded.first(where: { $0.isDefault })?.id
+            }
+        }
     }
 
     // MARK: - Subviews
