@@ -57,14 +57,7 @@ struct ChatView: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1)))
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    if let icon = vm.skill?.icon {
-                        Image(systemName: icon)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(vm.skill?.name ?? "Chat")
-                        .font(.headline)
-                }
+                skillPicker
                 if let app = vm.capture.appName {
                     HStack(spacing: 4) {
                         Text(app)
@@ -90,6 +83,30 @@ struct ChatView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private var skillPicker: some View {
+        // Custom binding so swapping picks triggers switchSkill (which
+        // resets chat history and re-runs the LLM with the new prompt).
+        let binding = Binding<UUID?>(
+            get: { vm.skill?.id },
+            set: { newID in
+                if let id = newID, let s = vm.availableSkills.first(where: { $0.id == id }) {
+                    vm.switchSkill(to: s)
+                }
+            }
+        )
+        return HStack(spacing: 6) {
+            Image(systemName: "sparkles").foregroundStyle(.secondary).font(.callout)
+            Picker("Skill", selection: binding) {
+                ForEach(vm.availableSkills) { s in
+                    Label(s.name, systemImage: s.icon).tag(Optional(s.id))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .disabled(vm.isStreaming || vm.captureID == nil)
+        }
     }
 
     // MARK: - Message list

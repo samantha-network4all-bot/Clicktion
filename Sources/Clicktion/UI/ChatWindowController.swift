@@ -8,7 +8,7 @@ final class ChatWindowController {
 
     private var windows: [String: NSWindow] = [:]
 
-    func open(capture: CaptureResult, jobID: String?, skill: Skill?) {
+    func open(capture: CaptureResult, captureID: String?, jobID: String?, skill: Skill?) {
         let windowKey = jobID ?? UUID().uuidString
 
         if let existing = windows[windowKey] {
@@ -17,7 +17,7 @@ final class ChatWindowController {
             return
         }
 
-        let vm = ChatViewModel(capture: capture, jobID: jobID, skill: skill)
+        let vm = ChatViewModel(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
         let view = ChatView(vm: vm)
         let controller = NSHostingController(rootView: view)
 

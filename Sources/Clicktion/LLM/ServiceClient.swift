@@ -82,7 +82,8 @@ final class ServiceClient {
     }
 
     func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil,
-                  useThinkingProfile: Bool = true) async throws -> JobRecord {
+                  useThinkingProfile: Bool = true,
+                  fresh: Bool = false) async throws -> JobRecord {
         struct Body: Encodable {
             let captureID: String
             let skillName: String
@@ -92,6 +93,7 @@ final class ServiceClient {
             let temperature: Double
             let maxTokens: Int
             let thinkingEnabled: Bool
+            let fresh: Bool
             enum CodingKeys: String, CodingKey {
                 case captureID = "capture_id"
                 case skillName = "skill_name"
@@ -101,6 +103,7 @@ final class ServiceClient {
                 case temperature
                 case maxTokens = "max_tokens"
                 case thinkingEnabled = "thinking_enabled"
+                case fresh
             }
         }
         let language = AppState.shared.effectiveResponseLanguage
@@ -116,7 +119,8 @@ final class ServiceClient {
             masterPrompt: profile.systemPrompt,
             temperature: profile.temperature,
             maxTokens: profile.maxTokens,
-            thinkingEnabled: profile.thinkingEnabled
+            thinkingEnabled: profile.thinkingEnabled,
+            fresh: fresh
         ))
     }
 

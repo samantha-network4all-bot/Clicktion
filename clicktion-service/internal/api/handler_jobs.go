@@ -18,6 +18,7 @@ type createJobRequest struct {
 	Temperature    *float64 `json:"temperature"`    // nil or -1 → model default
 	MaxTokens      *int     `json:"max_tokens"`     // nil or 0 → model default
 	ThinkingEnabled bool    `json:"thinking_enabled"`
+	Fresh          bool     `json:"fresh"`          // clear chat history before running (skill switch)
 }
 
 type jobResponse struct {
@@ -51,6 +52,10 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	maxTokens := 0
 	if req.MaxTokens != nil && *req.MaxTokens > 0 {
 		maxTokens = *req.MaxTokens
+	}
+
+	if req.Fresh {
+		_ = h.db.DeleteChatMessages(req.CaptureID)
 	}
 
 	job, err := h.db.CreateJob(db.Job{

@@ -80,8 +80,8 @@ final class CaptureDialogViewModel: ObservableObject {
 
     // MARK: - Send
 
-    func send(completion: @escaping (String?, Skill?) -> Void) {
-        guard let skill = selectedSkill else { completion(nil, nil); return }
+    func send(completion: @escaping (String?, String?, Skill?) -> Void) {
+        guard let skill = selectedSkill else { completion(nil, nil, nil); return }
         isSending = true
         Task {
             defer { isSending = false }
@@ -94,10 +94,10 @@ final class CaptureDialogViewModel: ObservableObject {
                     captureRecord = record
                 }
                 let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill, sendImage: sendImage, useThinkingProfile: useThinkingProfile)
-                completion(job.id, skill)
+                completion(job.id, record.id, skill)
             } catch {
                 errorMessage = error.localizedDescription
-                completion(nil, skill)
+                completion(nil, nil, skill)
             }
         }
     }

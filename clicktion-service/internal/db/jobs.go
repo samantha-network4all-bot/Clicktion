@@ -97,6 +97,11 @@ func (d *DB) AddChatMessage(m ChatMessage) (ChatMessage, error) {
 	return m, err
 }
 
+func (d *DB) DeleteChatMessages(captureID string) error {
+	_, err := d.sql.Exec(`DELETE FROM chat_messages WHERE capture_id = ?`, captureID)
+	return err
+}
+
 func (d *DB) ListChatMessages(captureID string) ([]ChatMessage, error) {
 	rows, err := d.sql.Query(`
 		SELECT id, capture_id, role, content, created_at

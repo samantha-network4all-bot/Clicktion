@@ -7,7 +7,7 @@ private let kCopySidebar: CGFloat     = 36    // width of the copy-button column
 
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
-    var onSend: (String?, Skill?) -> Void
+    var onSend: (String?, String?, Skill?) -> Void
     var onCancel: () -> Void
 
     @State private var showAdvanced = false
@@ -208,7 +208,7 @@ struct CaptureDialogView: View {
                 .keyboardShortcut(.escape, modifiers: [])
 
             Button {
-                vm.send { jobID, skill in onSend(jobID, skill) }
+                vm.send { jobID, captureID, skill in onSend(jobID, captureID, skill) }
             } label: {
                 HStack(spacing: 4) { Text("Action"); Image(systemName: "arrow.right") }
             }

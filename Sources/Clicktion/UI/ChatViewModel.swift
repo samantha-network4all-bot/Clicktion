@@ -9,15 +9,39 @@ final class ChatViewModel: ObservableObject {
     @Published var commandOutput: String? = nil
     @Published var pendingCommand: String? = nil
     @Published var showCommandWarning: Bool = false
+    @Published var availableSkills: [Skill] = []
+    @Published var skill: Skill?
 
     let capture: CaptureResult
-    let jobID: String?
-    let skill: Skill?
+    let captureID: String?
+    private(set) var jobID: String?
 
-    init(capture: CaptureResult, jobID: String?, skill: Skill?) {
+    init(capture: CaptureResult, captureID: String?, jobID: String?, skill: Skill?) {
         self.capture = capture
+        self.captureID = captureID
         self.jobID = jobID
         self.skill = skill
+        self.availableSkills = (try? SkillLoader.shared.loadAll()) ?? []
+    }
+
+    /// Re-run the capture with a different skill. Clears chat history both
+    /// locally and on the server (via fresh=true) so the new skill's system
+    /// prompt isn't polluted by the previous skill's responses.
+    func switchSkill(to newSkill: Skill) {
+        guard newSkill.id != skill?.id, !isStreaming, let captureID else { return }
+        skill = newSkill
+        messages.removeAll()
+        Task {
+            do {
+                let job = try await ServiceClient.shared.startJob(
+                    captureID: captureID, skill: newSkill, fresh: true
+                )
+                jobID = job.id
+                beginStream(jobID: job.id)
+            } catch {
+                appendError(error)
+            }
+        }
     }
 
     func onAppear() {

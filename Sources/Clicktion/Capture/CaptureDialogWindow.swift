@@ -13,10 +13,10 @@ final class CaptureDialogWindow {
         window?.close()
 
         let vm = CaptureDialogViewModel(capture: capture)
-        let view = CaptureDialogView(vm: vm) { [weak self] jobID, skill in
+        let view = CaptureDialogView(vm: vm) { [weak self] jobID, captureID, skill in
             self?.window?.close()
             self?.window = nil
-            ChatWindowController.shared.open(capture: capture, jobID: jobID, skill: skill)
+            ChatWindowController.shared.open(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
         } onCancel: { [weak self] in
             self?.window?.close()
             self?.window = nil
