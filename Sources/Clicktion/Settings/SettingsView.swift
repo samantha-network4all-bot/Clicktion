@@ -63,9 +63,9 @@ struct SettingsView: View {
 
     private var systemLanguageRow: some View {
         let name = Self.systemLanguageName
-        let isSelected = state.responseLanguage == name
+        let isSelected = state.responseLanguage == "system"
         return Button {
-            state.responseLanguage = name
+            state.responseLanguage = "system"
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "globe")
@@ -104,8 +104,8 @@ struct SettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(nsColor: .separatorColor)))
             .onAppear {
-                // Scroll to the currently selected language
-                if let code = Self.allLanguages.first(where: { $0.name == state.responseLanguage })?.code {
+                let target = state.responseLanguage == "system" ? Self.systemLanguageName : state.responseLanguage
+                if let code = Self.allLanguages.first(where: { $0.name == target })?.code {
                     proxy.scrollTo(code, anchor: .center)
                 }
             }
@@ -113,7 +113,7 @@ struct SettingsView: View {
     }
 
     private func languageRow(_ lang: (code: String, name: String)) -> some View {
-        let isSelected = state.responseLanguage == lang.name
+        let isSelected = state.responseLanguage != "system" && state.responseLanguage == lang.name
         return Button {
             state.responseLanguage = lang.name
         } label: {

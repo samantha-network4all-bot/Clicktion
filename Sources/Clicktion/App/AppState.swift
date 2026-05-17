@@ -14,15 +14,21 @@ final class AppState: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedSetup") }
     }
 
-    /// Display name of the language the LLM should reply in (e.g. "English", "Dutch").
-    /// Defaults to the system language on first run.
-    @Published var responseLanguage: String = {
-        if let stored = UserDefaults.standard.string(forKey: "responseLanguage") { return stored }
-        let code = Locale.current.language.languageCode?.identifier ?? "en"
-        return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
-    }() {
+    /// Stored selection: either `"system"` (follow system locale) or a language display name.
+    @Published var responseLanguage: String =
+        UserDefaults.standard.string(forKey: "responseLanguage") ?? "system" {
         didSet { UserDefaults.standard.set(responseLanguage, forKey: "responseLanguage") }
     }
+
+    /// The actual language name sent to the LLM (resolves "system" to the current locale).
+    var effectiveResponseLanguage: String {
+        responseLanguage == "system" ? Self.systemLanguageName : responseLanguage
+    }
+
+    static let systemLanguageName: String = {
+        let code = Locale.current.language.languageCode?.identifier ?? "en"
+        return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
+    }()
 
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
     // code-signature ACL prompts that Keychain triggers for ad-hoc signed binaries.
