@@ -118,5 +118,7 @@ struct CaptureResult {
     let windowTitle: String?
     let timestamp: Date
     var ocrText: String?
-    var isPrivate: Bool = true
+    // Default matches the current privacy mode: private in "Private only",
+    // public in "Trust my LLM provider".
+    var isPrivate: Bool = (UserDefaults.standard.string(forKey: "privacyMode") ?? "") != "public_enabled"
 }

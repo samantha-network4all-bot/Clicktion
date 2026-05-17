@@ -28,8 +28,9 @@ final class CaptureDialogViewModel: ObservableObject {
 
     init(capture: CaptureResult) {
         self.capture = capture
-        // In private-only mode, always force private regardless of capture default.
-        self.isPrivate = AppState.shared.privacyMode == .privateOnly ? true : capture.isPrivate
+        // Mirror the privacy mode: private-only forces true, public-enabled defaults to false.
+        // The capture.isPrivate already reflects this default; we just enforce the floor.
+        self.isPrivate = capture.isPrivate
     }
 
     func onAppear() {
