@@ -7,6 +7,7 @@ private struct ListWidthKey: PreferenceKey {
 
 struct ChatView: View {
     @StateObject var vm: ChatViewModel
+    var onBack: (() -> Void)? = nil
     @State private var listWidth: CGFloat = 540
     @FocusState private var inputFocused: Bool
 
@@ -49,6 +50,18 @@ struct ChatView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
+            if onBack != nil {
+                Button { onBack?() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Back to capture")
+                .keyboardShortcut("[", modifiers: .command)
+            }
             Image(nsImage: vm.capture.image)
                 .resizable()
                 .scaledToFill()

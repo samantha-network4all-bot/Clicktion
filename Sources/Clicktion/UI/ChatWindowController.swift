@@ -18,7 +18,11 @@ final class ChatWindowController {
         }
 
         let vm = ChatViewModel(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
-        let view = ChatView(vm: vm)
+        let key: String = windowKey
+        let view = ChatView(vm: vm) { [weak self] in
+            self?.windows[key]?.close()
+            CaptureDialogWindow.shared.show(capture: capture)
+        }
         let controller = NSHostingController(rootView: view)
 
         let win = NSWindow(contentViewController: controller)
@@ -31,7 +35,6 @@ final class ChatWindowController {
         NSApp.activate(ignoringOtherApps: true)
 
         // Clean up reference when window closes
-        let key: String = windowKey
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: win,
