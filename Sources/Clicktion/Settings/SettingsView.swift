@@ -1,22 +1,22 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var state = AppState.shared
     @State private var selectedTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            // Tab bar
-            HStack(spacing: 0) {
-                tabButton("General", tag: 0)
-                tabButton("Privacy", tag: 1)
-                tabButton("Profiles", tag: 2)
+            Picker("", selection: $selectedTab) {
+                Text("General").tag(0)
+                Text("Privacy").tag(1)
+                Text("Profiles").tag(2)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 0)
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
-            Divider().padding(.top, 8)
+            Divider()
 
             if selectedTab == 0 {
                 GeneralTab()
@@ -26,31 +26,17 @@ struct SettingsView: View {
                 ProfilesTab()
             }
         }
-        .frame(width: 420, height: 600)
-    }
-
-    private func tabButton(_ label: String, tag: Int) -> some View {
-        let active = selectedTab == tag
-        return Button { selectedTab = tag } label: {
-            Text(label)
-                .font(.callout.weight(active ? .semibold : .regular))
-                .foregroundStyle(active ? Color.accentColor : Color.secondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(active ? Color.accentColor.opacity(0.1) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
+        .frame(width: 800, height: 620)
     }
 }
 
-// MARK: - General tab
+// MARK: - General
 
 private struct GeneralTab: View {
     @StateObject private var state = AppState.shared
-    @State private var search = ""
     @State private var models: [ModelConfig] = []
     @State private var defaultModelID: UUID? = nil
+    @State private var search = ""
 
     private static let allLanguages: [(code: String, name: String)] = {
         Locale.LanguageCode.isoLanguageCodes.map(\.identifier).compactMap { code -> (String, String)? in
@@ -72,49 +58,15 @@ private struct GeneralTab: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-
-                // Default model
-                if !models.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Default model").font(.subheadline).fontWeight(.medium)
-                            Text("Used for all captures unless overridden.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Picker("Default model", selection: $defaultModelID) {
-                            ForEach(models) { model in
-                                Text(model.name).tag(Optional(model.id))
-                            }
-                        }
-                        .labelsHidden()
-                        .onChange(of: defaultModelID) { _, newID in
-                            guard let id = newID else { return }
-                            Task {
-                                if let updated = try? await ServiceClient.shared.setDefaultModel(id: id) {
-                                    models = updated
-                                }
-                            }
-                        }
-                    }
-                    Divider()
-                }
-
-                // Response language
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Response language").font(.subheadline).fontWeight(.medium)
-                        Text("The AI will always reply in the selected language.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    systemLanguageRow
-                    TextField("Search languages…", text: $search).textFieldStyle(.roundedBorder)
-                    languageList
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            if !models.isEmpty {
+                modelRow
+                Divider()
             }
-            .padding(16)
+            languageSection
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             if let loaded = try? await ServiceClient.shared.fetchModels() {
                 models = loaded
@@ -123,39 +75,68 @@ private struct GeneralTab: View {
         }
     }
 
-    private var systemLanguageRow: some View {
-        let name = Self.systemLanguageName
-        let isSelected = state.responseLanguage == "system"
-        return Button { state.responseLanguage = "system" } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "globe").foregroundStyle(.secondary).frame(width: 16)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("System default").font(.callout)
-                    Text(name).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
-                        .font(.callout.weight(.semibold))
+    private var modelRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Default model").font(.subheadline).fontWeight(.medium)
+                Text("Used for all captures unless overridden.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Picker("", selection: $defaultModelID) {
+                ForEach(models) { m in
+                    Text(m.name).tag(Optional(m.id))
                 }
             }
+            .labelsHidden()
+            .frame(width: 200)
+            .onChange(of: defaultModelID) { _, newID in
+                guard let id = newID else { return }
+                Task {
+                    if let updated = try? await ServiceClient.shared.setDefaultModel(id: id) {
+                        models = updated
+                    }
+                }
+            }
+        }
+    }
+
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Response language").font(.subheadline).fontWeight(.medium)
+                Text("The AI will always reply in the selected language.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            systemLangButton
+            TextField("Search languages…", text: $search).textFieldStyle(.roundedBorder)
+            langList
+        }
+    }
+
+    private var systemLangButton: some View {
+        let sel = state.responseLanguage == "system"
+        return Button { state.responseLanguage = "system" } label: {
+            HStack {
+                Text("System default (\(Self.systemLanguageName))").font(.callout)
+                Spacer()
+                if sel { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+            }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(isSelected ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
+            .background(sel ? Color.accentColor.opacity(0.1) : Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(
-                isSelected ? Color.accentColor.opacity(0.4) : Color.clear))
+            .overlay(RoundedRectangle(cornerRadius: 7).stroke(sel ? Color.accentColor.opacity(0.4) : Color.clear))
         }
         .buttonStyle(.plain)
     }
 
-    private var languageList: some View {
+    private var langList: some View {
         ScrollViewReader { proxy in
             List(filtered, id: \.code) { lang in
-                languageRow(lang).id(lang.code)
-                    .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                langRow(lang).id(lang.code)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
             }
             .listStyle(.plain)
-            .frame(height: 240)
             .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(nsColor: .separatorColor)))
             .onAppear {
@@ -167,57 +148,50 @@ private struct GeneralTab: View {
         }
     }
 
-    private func languageRow(_ lang: (code: String, name: String)) -> some View {
-        let isSelected = state.responseLanguage != "system" && state.responseLanguage == lang.name
+    private func langRow(_ lang: (code: String, name: String)) -> some View {
+        let sel = state.responseLanguage == lang.name
         return Button { state.responseLanguage = lang.name } label: {
             HStack {
-                Text(lang.name).font(.callout)
-                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                Text(lang.name).font(.callout).foregroundStyle(sel ? Color.accentColor : Color.primary)
                 Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
-                        .font(.callout.weight(.semibold))
-                }
+                if sel { Image(systemName: "checkmark").foregroundStyle(Color.accentColor).font(.callout.weight(.semibold)) }
             }
-            .padding(.vertical, 3).contentShape(Rectangle())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
 
-// MARK: - Privacy tab
+// MARK: - Privacy
 
 private struct PrivacyTab: View {
     @StateObject private var state = AppState.shared
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Privacy behaviour").font(.subheadline).fontWeight(.medium)
-                    Text("Controls how your captures are handled across all sessions.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 4)
-
-                privacyOption(
-                    mode: .privateOnly,
-                    icon: "lock.fill",
-                    title: "Private only — local LLMs",
-                    description: "Every capture stays on your network. Only LLMs running on localhost or your local network are used. The privacy toggle is hidden in the capture screen — there is nothing to toggle."
-                )
-
-                privacyOption(
-                    mode: .publicEnabled,
-                    icon: "globe",
-                    title: "Trust my LLM provider",
-                    description: "Captures can be sent to any configured LLM, including remote providers. A privacy toggle appears on each capture so you can decide per capture what to share with your provider."
-                )
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Privacy behaviour").font(.subheadline).fontWeight(.medium)
+                Text("Controls how your captures are handled across all sessions.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            .padding(16)
+            .padding(.bottom, 4)
+
+            privacyOption(
+                mode: .privateOnly,
+                icon: "lock.fill",
+                title: "Private only — local LLMs",
+                description: "Every capture stays on your network. Only LLMs running on localhost or your local network are used. The privacy toggle is hidden in the capture screen."
+            )
+            privacyOption(
+                mode: .publicEnabled,
+                icon: "globe",
+                title: "Trust my LLM provider",
+                description: "Captures can be sent to any configured LLM, including remote providers. A privacy toggle appears on each capture so you can decide per capture."
+            )
+            Spacer()
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func privacyOption(mode: AppState.PrivacyMode, icon: String,
@@ -229,19 +203,16 @@ private struct PrivacyTab: View {
                     .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                     .font(.title3)
                     .padding(.top, 1)
-
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Image(systemName: icon)
-                            .font(.callout)
+                        Image(systemName: icon).font(.callout)
                             .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                         Text(title)
                             .font(.callout.weight(selected ? .semibold : .regular))
                             .foregroundStyle(selected ? Color.accentColor : Color.primary)
                     }
                     Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -250,43 +221,52 @@ private struct PrivacyTab: View {
             .background(selected ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(
-                selected ? Color.accentColor.opacity(0.4) : Color(nsColor: .separatorColor)
-            ))
+                selected ? Color.accentColor.opacity(0.4) : Color(nsColor: .separatorColor)))
         }
         .buttonStyle(.plain)
     }
 }
 
-// MARK: - Profiles tab
+// MARK: - Profiles
 
 private struct ProfilesTab: View {
     @StateObject private var state = AppState.shared
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                profileCard(
-                    title: "Thinking",
-                    subtitle: "Model reasons before answering. Best for complex analysis.",
-                    icon: "brain",
-                    profile: $state.thinkingProfile,
-                    isThinking: true
-                )
-                profileCard(
-                    title: "Direct",
-                    subtitle: "Fast, concise answers. No reasoning steps shown.",
-                    icon: "bolt",
-                    profile: $state.nonThinkingProfile,
-                    isThinking: false
-                )
+            VStack(spacing: 16) {
+                ProfileCardView(title: "Thinking",
+                                subtitle: "Model reasons before answering. Best for complex analysis.",
+                                icon: "brain",
+                                profile: $state.thinkingProfile,
+                                isThinking: true)
+                ProfileCardView(title: "Direct",
+                                subtitle: "Fast, concise answers. No reasoning steps shown.",
+                                icon: "bolt",
+                                profile: $state.nonThinkingProfile,
+                                isThinking: false)
             }
-            .padding(16)
+            .padding(20)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct ProfileCardView: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    @Binding var profile: AppState.ModelProfile
+    let isThinking: Bool
+
+    private var tempSlider: Binding<Double> {
+        Binding(
+            get: { max(0, profile.temperature) },
+            set: { profile.temperature = $0 }
+        )
     }
 
-    private func profileCard(title: String, subtitle: String, icon: String,
-                             profile: Binding<AppState.ModelProfile>,
-                             isThinking: Bool) -> some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: icon).foregroundStyle(Color.accentColor)
@@ -299,9 +279,8 @@ private struct ProfilesTab: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Master system prompt")
-                    .font(.caption).foregroundStyle(.secondary)
-                TextEditor(text: profile.systemPrompt)
+                Text("Master system prompt").font(.caption).foregroundStyle(.secondary)
+                TextEditor(text: $profile.systemPrompt)
                     .font(.system(.caption, design: .monospaced))
                     .frame(height: 80)
                     .scrollContentBackground(.hidden)
@@ -310,21 +289,19 @@ private struct ProfilesTab: View {
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
             }
 
-            HStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Temperature").font(.caption).foregroundStyle(.secondary)
                     HStack {
-                        Slider(value: profile.temperature, in: 0...2, step: 0.05)
-                        Text(profile.wrappedValue.temperature < 0
-                             ? "auto"
-                             : String(format: "%.2f", profile.wrappedValue.temperature))
+                        Slider(value: tempSlider, in: 0...2, step: 0.05)
+                        Text(profile.temperature < 0 ? "auto" : String(format: "%.2f", profile.temperature))
                             .font(.caption.monospacedDigit())
                             .frame(width: 36)
                     }
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Max tokens").font(.caption).foregroundStyle(.secondary)
-                    Picker("", selection: profile.maxTokens) {
+                    Picker("", selection: $profile.maxTokens) {
                         Text("Auto").tag(0)
                         Text("512").tag(512)
                         Text("1 024").tag(1024)
@@ -338,15 +315,14 @@ private struct ProfilesTab: View {
             }
 
             if isThinking {
-                Toggle("Enable thinking / reasoning", isOn: profile.thinkingEnabled)
-                    .font(.callout)
-                    .toggleStyle(.checkbox)
+                Toggle("Enable thinking / reasoning", isOn: $profile.thinkingEnabled)
+                    .font(.callout).toggleStyle(.checkbox)
             }
 
             HStack {
                 Spacer()
                 Button("Reset to defaults") {
-                    profile.wrappedValue = isThinking ? .thinkingDefault : .nonThinkingDefault
+                    profile = isThinking ? .thinkingDefault : .nonThinkingDefault
                 }
                 .font(.caption).foregroundStyle(.secondary).buttonStyle(.plain)
             }
