@@ -259,30 +259,13 @@ struct CaptureDialogView: View {
     }
 
     private var inputModePicker: some View {
-        HStack(spacing: 0) {
-            inputModeOption(label: "Image + text", icon: "photo", selected: vm.sendImage) {
-                vm.sendImage = true
-            }
-            inputModeOption(label: "Text only", icon: "doc.text", selected: !vm.sendImage) {
-                vm.sendImage = false
-            }
+        Picker("", selection: $vm.sendImage) {
+            Label("Image + text", systemImage: "photo").tag(true)
+            Label("Text only", systemImage: "doc.text").tag(false)
         }
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor)))
-    }
-
-    private func inputModeOption(label: String, icon: String, selected: Bool,
-                                 action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(label, systemImage: icon)
-                .font(.callout.weight(selected ? .semibold : .regular))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.clear)
-                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-        }
-        .buttonStyle(.plain)
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 220)
     }
 }
 
