@@ -100,12 +100,17 @@ struct MessageBubbleView: View {
 
     private func codeBlock(language: String?, body: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let lang = language {
-                Text(lang)
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10).padding(.top, 6)
+            HStack(spacing: 6) {
+                if let lang = language {
+                    Text(lang)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                CopyCodeButton(text: body.trimmingCharacters(in: .newlines))
             }
+            .padding(.horizontal, 10).padding(.top, 6)
+
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(body.trimmingCharacters(in: .newlines))
                     .font(.system(.body, design: .monospaced))
@@ -199,6 +204,36 @@ struct ThinkingDotsView: View {
                 phase = (phase + 1) % 3
             }
         }
+    }
+}
+
+// MARK: - Copy code button
+
+private struct CopyCodeButton: View {
+    let text: String
+    @State private var copied = false
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                Text(copied ? "Copied" : "Copy")
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(copied ? Color.green : Color.secondary)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(hovering ? Color.secondary.opacity(0.15) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Copy to clipboard")
     }
 }
 
