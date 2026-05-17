@@ -93,20 +93,11 @@ func (d *DB) FallbackChain(localOnly bool) ([]Model, error) {
 	return out, rows.Err()
 }
 
-// SetDefaultModel clears is_default on every model then marks only id as default.
+// SetDefaultModel marks exactly one model as default in a single atomic statement.
 func (d *DB) SetDefaultModel(id string) error {
-	tx, err := d.sql.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err = tx.Exec(`UPDATE models SET is_default = 0`); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(`UPDATE models SET is_default = 1 WHERE id = ?`, id); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := d.sql.Exec(
+		`UPDATE models SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END`, id)
+	return err
 }
 
 func (d *DB) CreateModel(m Model) (Model, error) {

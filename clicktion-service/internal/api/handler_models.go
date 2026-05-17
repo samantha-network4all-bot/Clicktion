@@ -82,6 +82,12 @@ func (h *handler) updateModel(w http.ResponseWriter, r *http.Request) {
 	if j.IsLocalOverride == nil {
 		j.IsLocal = db.ClassifyLocal(j.BaseURL)
 	}
+	if j.IsDefault {
+		if err := h.db.SetDefaultModel(id); err != nil {
+			httpError(w, err, http.StatusInternalServerError)
+			return
+		}
+	}
 	if err := h.db.UpdateModel(jsonToModel(j)); err != nil {
 		httpError(w, err, http.StatusInternalServerError)
 		return
