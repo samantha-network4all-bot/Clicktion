@@ -63,21 +63,18 @@ final class ChatViewModel: ObservableObject {
         messages.append(.assistantStreaming())
 
         Task {
-            var content = ""
-            var thinking = ""
             var tokenCount = 0
             do {
-                try await ServiceClient.shared.streamJob(id: jobID) { token in
+                try await ServiceClient.shared.streamJob(id: jobID) { [weak self] token in
+                    guard let self, messages.indices.contains(idx) else { return }
                     if token.hasPrefix("\u{01}") {
-                        thinking += String(token.dropFirst())
+                        messages[idx].thinking += String(token.dropFirst())
                     } else {
-                        content += token
+                        messages[idx].content += token
                         tokenCount += 1
                     }
                 }
                 if messages.indices.contains(idx) {
-                    messages[idx].content = content
-                    messages[idx].thinking = thinking
                     messages[idx].tokenCount = tokenCount
                     messages[idx].isStreaming = false
                     messages[idx].streamEnd = Date()
