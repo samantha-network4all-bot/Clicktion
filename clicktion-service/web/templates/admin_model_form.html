@@ -41,8 +41,20 @@
 
     <div class="form-group">
       <label class="form-label">Model name</label>
-      <input class="form-input" type="text" name="model_name" value="{{.Model.ModelName}}"
-             placeholder="llama3.2-vision  /  gpt-4o  /  anthropic/claude-sonnet-4-5" required>
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <input class="form-input" type="text" id="model_name" name="model_name"
+               value="{{.Model.ModelName}}"
+               placeholder="llama3.2-vision  /  gpt-4o  /  anthropic/claude-sonnet-4-5"
+               style="flex:1" required>
+        <button type="button" id="probe-btn" onclick="probeModels()"
+                style="white-space:nowrap">Fetch models</button>
+      </div>
+      <div id="probe-list" style="display:none;margin-top:8px">
+        <select id="probe-select" class="form-select" onchange="pickModel(this.value)">
+          <option value="">— select a model —</option>
+        </select>
+      </div>
+      <div id="probe-error" style="display:none;margin-top:6px;color:var(--red);font-size:13px"></div>
     </div>
 
     <div class="form-row">
@@ -75,4 +87,46 @@
     </div>
   </form>
 </div>
+
+<script>
+async function probeModels() {
+  const baseURL = document.querySelector('[name=base_url]').value.trim();
+  const apiKey  = document.querySelector('[name=api_key]').value.trim();
+  const btn     = document.getElementById('probe-btn');
+  const errDiv  = document.getElementById('probe-error');
+  errDiv.style.display = 'none';
+  if (!baseURL) { errDiv.textContent = 'Enter a Base URL first.'; errDiv.style.display = 'block'; return; }
+  btn.textContent = 'Fetching…';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/admin/models/probe', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({base_url: baseURL, api_key: apiKey})
+    });
+    if (!resp.ok) { throw new Error(await resp.text()); }
+    const ids = await resp.json();
+    if (!ids || ids.length === 0) { throw new Error('No models returned by endpoint.'); }
+    const sel = document.getElementById('probe-select');
+    sel.innerHTML = '<option value="">— select a model —</option>';
+    const current = document.getElementById('model_name').value;
+    ids.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = id;
+      if (id === current) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    document.getElementById('probe-list').style.display = 'block';
+  } catch(e) {
+    errDiv.textContent = 'Could not fetch models: ' + e.message;
+    errDiv.style.display = 'block';
+  } finally {
+    btn.textContent = 'Fetch models';
+    btn.disabled = false;
+  }
+}
+function pickModel(id) {
+  if (id) document.getElementById('model_name').value = id;
+}
+</script>
 {{end}}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -41,6 +42,8 @@ func (h *handler) serveAdmin(w http.ResponseWriter, r *http.Request) {
 		h.adminModelTest(w, r, modelID(path, "/test"))
 	case strings.HasSuffix(path, "/setdefault") && r.Method == http.MethodPost:
 		h.adminModelSetDefault(w, r, modelID(path, "/setdefault"))
+	case path == "/models/probe" && r.Method == http.MethodPost:
+		h.adminModelProbe(w, r)
 
 	// API keys
 	case path == "/keys" && r.Method == http.MethodGet:
@@ -193,6 +196,51 @@ func (h *handler) adminModelTest(w http.ResponseWriter, r *http.Request, id stri
 	}
 	redirect(w, r, fmt.Sprintf("/admin/models?test_id=%s&test_ok=1&test_ms=%d&test_resp=%s",
 		id, ms, urlEncode(resp)))
+}
+
+// adminModelProbe fetches available model IDs from an OpenAI-compatible endpoint.
+// Called from the model form via JavaScript; proxied here to avoid CORS issues.
+func (h *handler) adminModelProbe(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		BaseURL string `json:"base_url"`
+		APIKey  string `json:"api_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	base := strings.TrimRight(body.BaseURL, "/")
+	req, err := http.NewRequestWithContext(r.Context(), "GET", base+"/v1/models", nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+body.APIKey)
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "could not reach endpoint: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		http.Error(w, "unexpected response from endpoint", http.StatusBadGateway)
+		return
+	}
+	ids := make([]string, len(result.Data))
+	for i, m := range result.Data {
+		ids[i] = m.ID
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ids)
 }
 
 func (h *handler) adminModelSetDefault(w http.ResponseWriter, r *http.Request, id string) {
