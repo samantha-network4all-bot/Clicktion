@@ -39,6 +39,21 @@ final class ServiceClient {
         try await post("/api/captures", body: payload)
     }
 
+    // MARK: - Storage
+
+    /// Fire-and-forget prune. The server walks oldest captures first,
+    /// deleting images (or the whole record if OCR is empty) until the
+    /// captures directory shrinks below maxMB.
+    func pruneStorage(maxMB: Int) async {
+        struct Body: Encodable {
+            let maxBytes: Int64
+            enum CodingKeys: String, CodingKey { case maxBytes = "max_bytes" }
+        }
+        struct Reply: Decodable {}
+        let _: Reply? = try? await post("/api/storage/prune",
+                                        body: Body(maxBytes: Int64(maxMB) * 1024 * 1024))
+    }
+
     // Parses SSE byte-by-byte rather than via .lines because
     // URLSession.AsyncBytes.AsyncLineSequence silently drops empty lines —
     // which destroys SSE event boundaries (data: \n\n) and causes every

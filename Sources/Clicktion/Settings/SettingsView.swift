@@ -63,6 +63,8 @@ private struct GeneralTab: View {
                 modelRow
                 Divider()
             }
+            diskRow
+            Divider()
             languageSection
         }
         .padding(20)
@@ -72,6 +74,24 @@ private struct GeneralTab: View {
                 models = loaded
                 defaultModelID = loaded.first(where: { $0.isDefault })?.id
             }
+        }
+    }
+
+    private var diskRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Capture disk usage").font(.subheadline).fontWeight(.medium)
+                Text("Oldest screenshots are deleted automatically above this limit. Captures with OCR text keep their chat history (image only removed).")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Stepper(value: $state.maxDiskUsageMB, in: 50...10_000, step: 50) {
+                Text("\(state.maxDiskUsageMB) MB")
+                    .font(.callout.monospacedDigit())
+                    .frame(minWidth: 80, alignment: .trailing)
+            }
+            .frame(width: 200)
         }
     }
 

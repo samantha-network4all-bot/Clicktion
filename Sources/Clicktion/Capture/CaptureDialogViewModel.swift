@@ -146,7 +146,10 @@ final class CaptureDialogViewModel: ObservableObject {
             isPrivate: isPrivate,
             availableSkills: availableSkills.map { SkillInfo(name: $0.name, triggers: $0.triggers) }
         )
-        return try await ServiceClient.shared.submitCapture(payload)
+        let record = try await ServiceClient.shared.submitCapture(payload)
+        let cap = AppState.shared.maxDiskUsageMB
+        Task.detached { await ServiceClient.shared.pruneStorage(maxMB: cap) }
+        return record
     }
 
     enum CaptureError: LocalizedError {

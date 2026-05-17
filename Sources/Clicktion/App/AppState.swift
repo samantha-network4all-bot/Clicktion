@@ -77,6 +77,17 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Disk usage
+
+    /// Soft cap on the captures directory in megabytes. The server prunes
+    /// oldest images down to this limit after each new capture.
+    @Published var maxDiskUsageMB: Int = {
+        let v = UserDefaults.standard.integer(forKey: "maxDiskUsageMB")
+        return v > 0 ? v : 250
+    }() {
+        didSet { UserDefaults.standard.set(maxDiskUsageMB, forKey: "maxDiskUsageMB") }
+    }
+
     // MARK: - Language
 
     /// Stored selection: either `"system"` (follow system locale) or a language display name.

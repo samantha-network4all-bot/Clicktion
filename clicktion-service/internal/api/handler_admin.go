@@ -388,3 +388,26 @@ func atoi(s string) int {
 func urlEncode(s string) string {
 	return strings.ReplaceAll(s, " ", "+")
 }
+
+// pruneStorage is called by the Mac app after each capture submission. It
+// trims the captures directory back down to max_bytes by deleting oldest
+// images first. Captures with no OCR text are removed entirely; captures
+// with OCR text keep their record (so the chat thread is still accessible).
+func (h *handler) pruneStorage(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MaxBytes int64 `json:"max_bytes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		httpError(w, err, http.StatusBadRequest)
+		return
+	}
+	if body.MaxBytes <= 0 {
+		httpError(w, fmt.Errorf("max_bytes must be positive"), http.StatusBadRequest)
+		return
+	}
+	full, imgs := h.db.PruneToFit(filepath.Join(h.dataDir, "captures"), body.MaxBytes)
+	jsonOK(w, map[string]int{
+		"deleted_captures": full,
+		"deleted_images":   imgs,
+	})
+}

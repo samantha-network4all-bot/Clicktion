@@ -1,6 +1,10 @@
 package db
 
-import "time"
+import (
+	"os"
+	"strings"
+	"time"
+)
 
 type LLMStat struct {
 	ModelName    string
@@ -101,4 +105,53 @@ func (d *DB) ImagePaths(ids []string) []string {
 		}
 	}
 	return out
+}
+
+// PruneToFit deletes oldest captures' image files until the captures directory
+// drops under maxBytes. A capture with no OCR text is removed entirely (record
+// + chat history via ON DELETE CASCADE); a capture with OCR text keeps its row
+// (image_path cleared) so the chat thread stays browsable in the archive.
+func (d *DB) PruneToFit(capturesDir string, maxBytes int64) (deletedFull, deletedImages int) {
+	current := dirSize(capturesDir)
+	if current <= maxBytes {
+		return
+	}
+
+	rows, err := d.sql.Query(
+		`SELECT id, image_path, ocr_text FROM captures
+		 WHERE image_path != ''
+		 ORDER BY created_at ASC`)
+	if err != nil {
+		return
+	}
+	type item struct{ id, path, ocr string }
+	var items []item
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.id, &it.path, &it.ocr); err == nil {
+			items = append(items, it)
+		}
+	}
+	rows.Close()
+
+	for _, it := range items {
+		if current <= maxBytes {
+			break
+		}
+		var freed int64
+		if fi, e := os.Stat(it.path); e == nil {
+			freed = fi.Size()
+		}
+		os.Remove(it.path)
+
+		if strings.TrimSpace(it.ocr) == "" {
+			d.sql.Exec(`DELETE FROM captures WHERE id = ?`, it.id)
+			deletedFull++
+		} else {
+			d.sql.Exec(`UPDATE captures SET image_path = '' WHERE id = ?`, it.id)
+			deletedImages++
+		}
+		current -= freed
+	}
+	return
 }
