@@ -146,6 +146,14 @@ func (h *handler) streamWithModel(
 		return result, err
 	}
 
+	// Treat an empty response as failure so the fallback chain can try the
+	// next model. This catches cases where a model returns HTTP 200 but
+	// streams no content (e.g. LM Studio when a model fails to load due to
+	// insufficient memory — it sometimes returns 200 with an empty stream).
+	if strings.TrimSpace(fullResponse) == "" {
+		return result, fmt.Errorf("model returned empty response")
+	}
+
 	h.db.AddChatMessage(db.ChatMessage{
 		CaptureID: job.CaptureID,
 		Role:      "assistant",
