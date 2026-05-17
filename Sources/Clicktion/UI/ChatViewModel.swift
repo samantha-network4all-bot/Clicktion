@@ -65,18 +65,18 @@ final class ChatViewModel: ObservableObject {
         Task {
             var tokenCount = 0
             do {
-                for try await token in ServiceClient.shared.streamJob(id: jobID) {
-                    guard messages.indices.contains(idx) else { break }
+                try await ServiceClient.shared.streamJob(id: jobID) { [weak self] token in
+                    guard let self, messages.indices.contains(idx) else { return }
                     if token.hasPrefix("\u{01}") {
                         messages[idx].thinking += String(token.dropFirst())
                     } else {
                         messages[idx].content += token
                         tokenCount += 1
                     }
-                    // Yield to the main run loop between tokens so SwiftUI can
-                    // render each token before the next one is processed.
-                    // Without this, a fast local LLM delivers all tokens in one
-                    // TCP packet and they are batched into a single render pass.
+                    // Yield to the main run loop so SwiftUI can render this token
+                    // before streamJob reads the next one from the network.
+                    // Because onToken is async, streamJob suspends here — the
+                    // network read loop only advances after this await completes.
                     await Task.yield()
                 }
                 if messages.indices.contains(idx) {
