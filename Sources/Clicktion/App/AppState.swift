@@ -14,6 +14,22 @@ final class AppState: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedSetup") }
     }
 
+    // MARK: - Privacy mode
+
+    enum PrivacyMode: String {
+        case privateOnly   = "private_only"
+        case publicEnabled = "public_enabled"
+    }
+
+    @Published var privacyMode: PrivacyMode = {
+        let raw = UserDefaults.standard.string(forKey: "privacyMode") ?? ""
+        return PrivacyMode(rawValue: raw) ?? .privateOnly
+    }() {
+        didSet { UserDefaults.standard.set(privacyMode.rawValue, forKey: "privacyMode") }
+    }
+
+    // MARK: - Language
+
     /// Stored selection: either `"system"` (follow system locale) or a language display name.
     @Published var responseLanguage: String =
         UserDefaults.standard.string(forKey: "responseLanguage") ?? "system" {

@@ -224,11 +224,14 @@ struct CaptureDialogView: View {
     // MARK: - Advanced section (collapsible)
 
     private var advancedSection: some View {
-        VStack(spacing: 0) {
+        let privateOnly = AppState.shared.privacyMode == .privateOnly
+        return VStack(spacing: 0) {
             Divider()
             DisclosureGroup(isExpanded: $showAdvanced) {
                 HStack(spacing: 16) {
-                    privacyToggle
+                    if !privateOnly {
+                        privacyToggle
+                    }
                     Spacer()
                     inputModePicker
                 }
