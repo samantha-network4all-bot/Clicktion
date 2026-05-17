@@ -39,26 +39,39 @@ final class ServiceClient {
         try await post("/api/captures", body: payload)
     }
 
-    func streamJob(id: String, onToken: @escaping (String) -> Void) async throws {
-        var request = URLRequest(url: baseURL.appendingPathComponent("/api/jobs/\(id)/stream"),
-                                 timeoutInterval: .infinity)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    // Returns an AsyncThrowingStream so callers can `for try await token in`
+    // and add suspension points (Task.yield) between tokens, giving SwiftUI
+    // a chance to render each token before the next one arrives.
+    func streamJob(id: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    var request = URLRequest(
+                        url: baseURL.appendingPathComponent("/api/jobs/\(id)/stream"),
+                        timeoutInterval: .infinity)
+                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        let (bytes, _) = try await URLSession.shared.bytes(for: request)
-        // SSE events may span multiple data: lines (sseEscape splits \n into
-        // consecutive data: lines). Accumulate them before dispatching.
-        var pending = ""
-        for try await line in bytes.lines {
-            if line.hasPrefix("data: ") {
-                let chunk = String(line.dropFirst(6))
-                if chunk == "[DONE]" {
-                    if !pending.isEmpty { onToken(pending); pending = "" }
-                    break
+                    let (bytes, _) = try await URLSession.shared.bytes(for: request)
+                    // SSE events may span multiple data: lines (sseEscape splits \n into
+                    // consecutive data: lines). Accumulate them before yielding.
+                    var pending = ""
+                    for try await line in bytes.lines {
+                        if line.hasPrefix("data: ") {
+                            let chunk = String(line.dropFirst(6))
+                            if chunk == "[DONE]" {
+                                if !pending.isEmpty { continuation.yield(pending); pending = "" }
+                                break
+                            }
+                            pending = pending.isEmpty ? chunk : pending + "\n" + chunk
+                        } else if line.isEmpty, !pending.isEmpty {
+                            continuation.yield(pending)
+                            pending = ""
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
                 }
-                pending = pending.isEmpty ? chunk : pending + "\n" + chunk
-            } else if line.isEmpty, !pending.isEmpty {
-                onToken(pending)
-                pending = ""
             }
         }
     }
