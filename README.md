@@ -45,7 +45,7 @@ When you capture a screenshot, a dialog appears before the capture is sent to th
 | **Thumbnail** | Preview of the screenshot (or cropped region). Copy-to-clipboard button sits in the sidebar to the right |
 | **OCR text** | Extracted text, selectable. Copy-to-clipboard button in the top-right corner |
 | **Bottom bar** | Choose a skill (✦), then Cancel or **Action →** to send |
-| **Advanced** | Collapsible section with the privacy toggle (local-only vs. remote LLM) and image mode (Image + text / Text only) |
+| **Advanced** | Collapsible section with profile picker (Thinking / Direct), privacy toggle (local-only vs. remote LLM), and image mode (Image + text / Text only) |
 
 ---
 
@@ -126,13 +126,34 @@ With the app running, open these in any browser:
 
 ## Settings
 
-Open **Settings…** from the menu bar icon (above Quit) to configure app-wide defaults.
+Open **Settings…** from the menu bar icon (above Quit) to configure app-wide defaults. Settings are split across three tabs.
+
+### General tab
 
 | Setting | Description |
 |---------|-------------|
-| **Response language** | The language the LLM will always reply in. Defaults to the system language detected at first launch. Appended to every skill prompt as `- You need to reply in <language>.` |
+| **Default model** | The model used for all captures. Fetched from the Go service; one model can be default at a time. |
+| **Response language** | The language the LLM will always reply in. Defaults to the system locale. Appended to every skill prompt as `- You need to reply in <language>.` |
 
 The full list of ~180 ISO languages is available with a live search field. The selection persists across launches.
+
+### Privacy tab
+
+| Mode | Description |
+|------|-------------|
+| **Private only — local LLMs** | Every capture stays on your network. Only models at `localhost` or RFC1918 addresses are used. The per-capture privacy toggle is hidden. |
+| **Trust my LLM provider** | Captures can be sent to any configured model. A privacy toggle appears on each capture dialog so you can decide per capture. |
+
+### Profiles tab
+
+Two master profiles control LLM behaviour. The profile is selected per capture in the Advanced section of the capture dialog.
+
+| Profile | Default behaviour |
+|---------|------------------|
+| **Thinking** | Reasoning enabled, prompts the model to think before answering. Best for complex analysis. Temperature: model default, max tokens: model default. |
+| **Direct** | No reasoning steps shown. Concise answers, low temperature (0.3), 2048 token limit. |
+
+Each profile exposes: master system prompt (prepended before the skill prompt), temperature slider (0–2, or model default), max tokens picker, and a thinking toggle (Thinking profile only). Changes persist across launches. A **Reset to defaults** button restores factory values.
 
 ---
 
@@ -186,6 +207,7 @@ The Mac app communicates with the Go service over HTTP. All `/api/` routes requi
 | `PUT` | `/api/models/{id}` | Update a model |
 | `DELETE` | `/api/models/{id}` | Delete a model |
 | `POST` | `/api/models/{id}/test` | Test a model with a live request |
+| `POST` | `/api/models/{id}/setdefault` | Mark a model as default (clears all others) |
 | `GET` | `/api/auth/keys` | List API keys |
 | `POST` | `/api/auth/keys` | Create an API key |
 | `DELETE` | `/api/auth/keys/{id}` | Delete an API key |

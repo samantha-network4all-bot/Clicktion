@@ -3,15 +3,19 @@ package db
 import "time"
 
 type Job struct {
-	ID          string
-	CaptureID   string
-	ModelID     *string
-	SkillName   *string
-	SkillPrompt *string
-	SendImage   bool // whether to include the screenshot in the LLM request
-	Status      string // pending | running | done | failed
-	CreatedAt   time.Time
-	FinishedAt  *time.Time
+	ID              string
+	CaptureID       string
+	ModelID         *string
+	SkillName       *string
+	SkillPrompt     *string
+	SendImage       bool    // whether to include the screenshot in the LLM request
+	MasterPrompt    string  // prepended as system message before skill prompt
+	Temperature     float64 // -1 = model default
+	MaxTokens       int     // 0 = model default
+	ThinkingEnabled bool
+	Status          string // pending | running | done | failed
+	CreatedAt       time.Time
+	FinishedAt      *time.Time
 }
 
 type ChatMessage struct {
@@ -41,25 +45,35 @@ func (d *DB) CreateJob(j Job) (Job, error) {
 	if !j.SendImage {
 		sendImage = 0
 	}
+	thinkingEnabled := 0
+	if j.ThinkingEnabled {
+		thinkingEnabled = 1
+	}
 	_, err := d.sql.Exec(`
-		INSERT INTO jobs (id, capture_id, model_id, skill_name, skill_prompt, send_image, status)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-		j.ID, j.CaptureID, j.ModelID, j.SkillName, j.SkillPrompt, sendImage)
+		INSERT INTO jobs (id, capture_id, model_id, skill_name, skill_prompt, send_image,
+		                  master_prompt, temperature, max_tokens, thinking_enabled, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+		j.ID, j.CaptureID, j.ModelID, j.SkillName, j.SkillPrompt, sendImage,
+		j.MasterPrompt, j.Temperature, j.MaxTokens, thinkingEnabled)
 	return j, err
 }
 
 func (d *DB) GetJob(id string) (*Job, error) {
 	var j Job
-	var sendImage int
+	var sendImage, thinkingEnabled int
 	err := d.sql.QueryRow(`
-		SELECT id, capture_id, model_id, skill_name, skill_prompt, send_image, status, created_at, finished_at
+		SELECT id, capture_id, model_id, skill_name, skill_prompt, send_image,
+		       master_prompt, temperature, max_tokens, thinking_enabled,
+		       status, created_at, finished_at
 		FROM jobs WHERE id = ?`, id).Scan(
 		&j.ID, &j.CaptureID, &j.ModelID, &j.SkillName, &j.SkillPrompt, &sendImage,
+		&j.MasterPrompt, &j.Temperature, &j.MaxTokens, &thinkingEnabled,
 		&j.Status, &j.CreatedAt, &j.FinishedAt)
 	if err != nil {
 		return nil, err
 	}
 	j.SendImage = sendImage != 0
+	j.ThinkingEnabled = thinkingEnabled != 0
 	return &j, nil
 }
 

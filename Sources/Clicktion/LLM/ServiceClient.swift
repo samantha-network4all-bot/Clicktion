@@ -67,26 +67,42 @@ final class ServiceClient {
         }
     }
 
-    func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil) async throws -> JobRecord {
+    func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil,
+                  useThinkingProfile: Bool = true) async throws -> JobRecord {
         struct Body: Encodable {
             let captureID: String
             let skillName: String
             let skillPrompt: String
             let sendImage: Bool
+            let masterPrompt: String
+            let temperature: Double
+            let maxTokens: Int
+            let thinkingEnabled: Bool
             enum CodingKeys: String, CodingKey {
                 case captureID = "capture_id"
                 case skillName = "skill_name"
                 case skillPrompt = "skill_prompt"
                 case sendImage = "send_image"
+                case masterPrompt = "master_prompt"
+                case temperature
+                case maxTokens = "max_tokens"
+                case thinkingEnabled = "thinking_enabled"
             }
         }
         let language = AppState.shared.effectiveResponseLanguage
         let prompt = skill.systemPrompt + "\n- You need to reply in \(language)."
+        let profile = useThinkingProfile
+            ? AppState.shared.thinkingProfile
+            : AppState.shared.nonThinkingProfile
         return try await post("/api/jobs", body: Body(
             captureID: captureID,
             skillName: skill.name,
             skillPrompt: prompt,
-            sendImage: sendImage ?? (skill.inputMode == .imageAndText)
+            sendImage: sendImage ?? (skill.inputMode == .imageAndText),
+            masterPrompt: profile.systemPrompt,
+            temperature: profile.temperature,
+            maxTokens: profile.maxTokens,
+            thinkingEnabled: profile.thinkingEnabled
         ))
     }
 

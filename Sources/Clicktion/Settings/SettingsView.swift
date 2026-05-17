@@ -10,6 +10,7 @@ struct SettingsView: View {
             HStack(spacing: 0) {
                 tabButton("General", tag: 0)
                 tabButton("Privacy", tag: 1)
+                tabButton("Profiles", tag: 2)
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -19,11 +20,13 @@ struct SettingsView: View {
 
             if selectedTab == 0 {
                 GeneralTab()
-            } else {
+            } else if selectedTab == 1 {
                 PrivacyTab()
+            } else {
+                ProfilesTab()
             }
         }
-        .frame(width: 360, height: 560)
+        .frame(width: 420, height: 600)
     }
 
     private func tabButton(_ label: String, tag: Int) -> some View {
@@ -251,5 +254,106 @@ private struct PrivacyTab: View {
             ))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Profiles tab
+
+private struct ProfilesTab: View {
+    @StateObject private var state = AppState.shared
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                profileCard(
+                    title: "Thinking",
+                    subtitle: "Model reasons before answering. Best for complex analysis.",
+                    icon: "brain",
+                    profile: $state.thinkingProfile,
+                    isThinking: true
+                )
+                profileCard(
+                    title: "Direct",
+                    subtitle: "Fast, concise answers. No reasoning steps shown.",
+                    icon: "bolt",
+                    profile: $state.nonThinkingProfile,
+                    isThinking: false
+                )
+            }
+            .padding(16)
+        }
+    }
+
+    private func profileCard(title: String, subtitle: String, icon: String,
+                             profile: Binding<AppState.ModelProfile>,
+                             isThinking: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: icon).foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.subheadline).fontWeight(.semibold)
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Master system prompt")
+                    .font(.caption).foregroundStyle(.secondary)
+                TextEditor(text: profile.systemPrompt)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(height: 80)
+                    .scrollContentBackground(.hidden)
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+            }
+
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Temperature").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Slider(value: profile.temperature, in: 0...2, step: 0.05)
+                        Text(profile.wrappedValue.temperature < 0
+                             ? "auto"
+                             : String(format: "%.2f", profile.wrappedValue.temperature))
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 36)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Max tokens").font(.caption).foregroundStyle(.secondary)
+                    Picker("", selection: profile.maxTokens) {
+                        Text("Auto").tag(0)
+                        Text("512").tag(512)
+                        Text("1 024").tag(1024)
+                        Text("2 048").tag(2048)
+                        Text("4 096").tag(4096)
+                        Text("8 192").tag(8192)
+                    }
+                    .labelsHidden()
+                    .frame(width: 90)
+                }
+            }
+
+            if isThinking {
+                Toggle("Enable thinking / reasoning", isOn: profile.thinkingEnabled)
+                    .font(.callout)
+                    .toggleStyle(.checkbox)
+            }
+
+            HStack {
+                Spacer()
+                Button("Reset to defaults") {
+                    profile.wrappedValue = isThinking ? .thinkingDefault : .nonThinkingDefault
+                }
+                .font(.caption).foregroundStyle(.secondary).buttonStyle(.plain)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor)))
     }
 }

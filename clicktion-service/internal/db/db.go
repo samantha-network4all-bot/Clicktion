@@ -37,6 +37,10 @@ func (d *DB) runMigrations() error {
 	alters := []string{
 		`ALTER TABLE jobs ADD COLUMN skill_prompt TEXT`,
 		`ALTER TABLE jobs ADD COLUMN send_image INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE jobs ADD COLUMN master_prompt TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN temperature REAL NOT NULL DEFAULT -1`,
+		`ALTER TABLE jobs ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN thinking_enabled INTEGER NOT NULL DEFAULT 0`,
 	}
 	for _, stmt := range alters {
 		if _, err := d.sql.Exec(stmt); err != nil {

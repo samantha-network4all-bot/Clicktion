@@ -103,10 +103,15 @@ func (h *handler) executeJob(ctx context.Context, jobID string, stream *jobStrea
 		return fmt.Errorf("no suitable model configured")
 	}
 
+	opts := llm.StreamOptions{
+		Temperature: job.Temperature,
+		MaxTokens:   job.MaxTokens,
+	}
+
 	var lastErr error
 	for i, model := range models {
 		client := llm.NewClient(model.BaseURL, model.APIKey, model.ModelName)
-		result, err := h.streamWithModel(ctx, client, job, capture, history, stream, i > 0)
+		result, err := h.streamWithModel(ctx, client, job, capture, history, stream, i > 0, opts)
 		if err == nil {
 			h.db.AddLLMLog(db.LLMLog{
 				JobID:            jobID,
@@ -132,12 +137,13 @@ func (h *handler) streamWithModel(
 	history []db.ChatMessage,
 	stream *jobStream,
 	isFallback bool,
+	opts llm.StreamOptions,
 ) (llm.StreamResult, error) {
 	messages := buildMessages(job, capture, history, job.SendImage)
 
 	var fullResponse string
 	var receivedAnyToken bool
-	result, err := client.Stream(ctx, messages, func(token string) {
+	result, err := client.Stream(ctx, messages, opts, func(token string) {
 		receivedAnyToken = true
 		if !strings.HasPrefix(token, "\x01") {
 			fullResponse += token
@@ -169,6 +175,9 @@ func (h *handler) streamWithModel(
 func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, sendImage bool) []llm.Message {
 	var messages []llm.Message
 
+	if job.MasterPrompt != "" {
+		messages = append(messages, llm.TextMessage(llm.RoleSystem, job.MasterPrompt))
+	}
 	if job.SkillPrompt != nil && *job.SkillPrompt != "" {
 		messages = append(messages, llm.TextMessage(llm.RoleSystem, *job.SkillPrompt))
 	}

@@ -67,11 +67,18 @@ type ImageURL struct {
 	Detail string `json:"detail,omitempty"`
 }
 
-type Request struct {
-	Model     string    `json:"model"`
-	Messages  []Message `json:"messages"`
-	Stream    bool      `json:"stream"`
-	MaxTokens int       `json:"max_tokens,omitempty"`
+// StreamOptions controls per-request LLM parameters from the master profile.
+type StreamOptions struct {
+	Temperature float64 // -1 = model default (omit from request)
+	MaxTokens   int     // 0 = model default (omit from request)
+}
+
+type chatRequest struct {
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Stream      bool      `json:"stream"`
+	Temperature *float64  `json:"temperature,omitempty"`
+	MaxTokens   *int      `json:"max_tokens,omitempty"`
 }
 
 // StreamResult carries timing info for logging.
@@ -84,14 +91,23 @@ type StreamResult struct {
 
 // Stream calls the LLM and delivers tokens to onToken one at a time.
 // Returns after the stream closes or ctx is cancelled.
-func (c *Client) Stream(ctx context.Context, messages []Message, onToken func(string)) (StreamResult, error) {
+func (c *Client) Stream(ctx context.Context, messages []Message, opts StreamOptions, onToken func(string)) (StreamResult, error) {
 	start := time.Now()
 
-	body, err := json.Marshal(Request{
+	llmReq := chatRequest{
 		Model:    c.ModelName,
 		Messages: messages,
 		Stream:   true,
-	})
+	}
+	if opts.Temperature >= 0 {
+		t := opts.Temperature
+		llmReq.Temperature = &t
+	}
+	if opts.MaxTokens > 0 {
+		llmReq.MaxTokens = &opts.MaxTokens
+	}
+
+	body, err := json.Marshal(llmReq)
 	if err != nil {
 		return StreamResult{}, err
 	}
@@ -153,11 +169,12 @@ func (c *Client) Stream(ctx context.Context, messages []Message, onToken func(st
 
 // Complete is a non-streaming call. Used for skill pre-selection.
 func (c *Client) Complete(ctx context.Context, messages []Message) (string, error) {
-	body, err := json.Marshal(Request{
+	maxTok := 64
+	body, err := json.Marshal(chatRequest{
 		Model:     c.ModelName,
 		Messages:  messages,
 		Stream:    false,
-		MaxTokens: 64,
+		MaxTokens: &maxTok,
 	})
 	if err != nil {
 		return "", err

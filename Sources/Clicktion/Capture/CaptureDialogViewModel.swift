@@ -14,6 +14,7 @@ final class CaptureDialogViewModel: ObservableObject {
     @Published var isSending: Bool = false
     @Published var errorMessage: String?
     @Published var sendImage: Bool = true
+    @Published var useThinkingProfile: Bool = true
 
     // Annotation state
     @Published var activeTool: AnnotationTool = .none
@@ -92,7 +93,7 @@ final class CaptureDialogViewModel: ObservableObject {
                     record = try await doSubmitCapture()
                     captureRecord = record
                 }
-                let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill, sendImage: sendImage)
+                let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill, sendImage: sendImage, useThinkingProfile: useThinkingProfile)
                 completion(job.id, skill)
             } catch {
                 errorMessage = error.localizedDescription

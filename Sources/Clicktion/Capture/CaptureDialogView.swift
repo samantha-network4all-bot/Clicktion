@@ -228,12 +228,28 @@ struct CaptureDialogView: View {
         return VStack(spacing: 0) {
             Divider()
             DisclosureGroup(isExpanded: $showAdvanced) {
-                HStack(spacing: 16) {
-                    if !privateOnly {
-                        privacyToggle
+                VStack(alignment: .leading, spacing: 10) {
+                    // Profile picker
+                    HStack(spacing: 8) {
+                        Text("Profile")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Picker("", selection: $vm.useThinkingProfile) {
+                            Label("Thinking", systemImage: "brain").tag(true)
+                            Label("Direct", systemImage: "bolt").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 200)
                     }
-                    Spacer()
-                    inputModePicker
+
+                    HStack(spacing: 16) {
+                        if !privateOnly {
+                            privacyToggle
+                        }
+                        Spacer()
+                        inputModePicker
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)

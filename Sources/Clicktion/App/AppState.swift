@@ -28,6 +28,55 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(privacyMode.rawValue, forKey: "privacyMode") }
     }
 
+    // MARK: - Model profiles
+
+    struct ModelProfile: Codable, Equatable {
+        var systemPrompt: String
+        var thinkingEnabled: Bool
+        var maxTokens: Int      // 0 = model default
+        var temperature: Double // -1 = model default
+
+        static let thinkingDefault = ModelProfile(
+            systemPrompt: "Take your time to reason through the problem carefully before answering.",
+            thinkingEnabled: true,
+            maxTokens: 0,
+            temperature: -1
+        )
+        static let nonThinkingDefault = ModelProfile(
+            systemPrompt: """
+                Be direct and concise. Do not explain your reasoning or include thinking steps. \
+                Give the answer immediately without preamble. \
+                Do not start with phrases like "I'll analyze" or "Let me think". \
+                Do not include a thinking or reasoning section.
+                """,
+            thinkingEnabled: false,
+            maxTokens: 2048,
+            temperature: 0.3
+        )
+    }
+
+    @Published var thinkingProfile: ModelProfile = {
+        guard let data = UserDefaults.standard.data(forKey: "thinkingProfile"),
+              let p = try? JSONDecoder().decode(ModelProfile.self, from: data) else {
+            return .thinkingDefault
+        }
+        return p
+    }() { didSet { saveProfile(thinkingProfile, key: "thinkingProfile") } }
+
+    @Published var nonThinkingProfile: ModelProfile = {
+        guard let data = UserDefaults.standard.data(forKey: "nonThinkingProfile"),
+              let p = try? JSONDecoder().decode(ModelProfile.self, from: data) else {
+            return .nonThinkingDefault
+        }
+        return p
+    }() { didSet { saveProfile(nonThinkingProfile, key: "nonThinkingProfile") } }
+
+    private func saveProfile(_ profile: ModelProfile, key: String) {
+        if let data = try? JSONEncoder().encode(profile) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
     // MARK: - Language
 
     /// Stored selection: either `"system"` (follow system locale) or a language display name.

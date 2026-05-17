@@ -10,10 +10,14 @@ import (
 )
 
 type createJobRequest struct {
-	CaptureID   string `json:"capture_id"`
-	SkillName   string `json:"skill_name"`
-	SkillPrompt string `json:"skill_prompt"`
-	SendImage   *bool  `json:"send_image"` // nil → default true (backward compat)
+	CaptureID      string   `json:"capture_id"`
+	SkillName      string   `json:"skill_name"`
+	SkillPrompt    string   `json:"skill_prompt"`
+	SendImage      *bool    `json:"send_image"` // nil → default true (backward compat)
+	MasterPrompt   string   `json:"master_prompt"`
+	Temperature    *float64 `json:"temperature"`    // nil or -1 → model default
+	MaxTokens      *int     `json:"max_tokens"`     // nil or 0 → model default
+	ThinkingEnabled bool    `json:"thinking_enabled"`
 }
 
 type jobResponse struct {
@@ -39,11 +43,25 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	skillName := req.SkillName
 	skillPrompt := req.SkillPrompt
 	sendImage := req.SendImage == nil || *req.SendImage // default true
+
+	var temperature float64 = -1 // -1 = model default
+	if req.Temperature != nil && *req.Temperature >= 0 {
+		temperature = *req.Temperature
+	}
+	maxTokens := 0
+	if req.MaxTokens != nil && *req.MaxTokens > 0 {
+		maxTokens = *req.MaxTokens
+	}
+
 	job, err := h.db.CreateJob(db.Job{
-		CaptureID:   req.CaptureID,
-		SkillName:   &skillName,
-		SkillPrompt: &skillPrompt,
-		SendImage:   sendImage,
+		CaptureID:      req.CaptureID,
+		SkillName:      &skillName,
+		SkillPrompt:    &skillPrompt,
+		SendImage:      sendImage,
+		MasterPrompt:   req.MasterPrompt,
+		Temperature:    temperature,
+		MaxTokens:      maxTokens,
+		ThinkingEnabled: req.ThinkingEnabled,
 	})
 	if err != nil {
 		httpError(w, err, http.StatusInternalServerError)
