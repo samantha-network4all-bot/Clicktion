@@ -19,7 +19,6 @@ final class CaptureDialogViewModel: ObservableObject {
     // Annotation state
     @Published var activeTool: AnnotationTool = .none
     @Published var annotations: [Annotation] = []
-    @Published var textNote: String = ""        // text tool input
     @Published var croppedImage: NSImage?       // set when rectangle is finalized
 
     /// The image that will actually be sent — cropped if a rectangle was drawn.
@@ -67,15 +66,6 @@ final class CaptureDialogViewModel: ObservableObject {
             ocrText = (try? await OCRProcessor.recognize(image: cropped)) ?? ""
             isOCRRunning = false
         }
-    }
-
-    func commitTextAnnotation() {
-        let note = textNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !note.isEmpty else { return }
-        // Place text at center of image as a canvas overlay
-        annotations.append(Annotation(kind: .text(note, CGPoint(x: 0.05, y: 0.9))))
-        textNote = ""
-        activeTool = .none
     }
 
     // MARK: - Send
@@ -148,12 +138,9 @@ final class CaptureDialogViewModel: ObservableObject {
             throw CaptureError.encodingFailed
         }
 
-        // Include text note as extra OCR context if present
-        let combinedOCR = textNote.isEmpty ? ocrText : "\(ocrText)\n\n[User note]\n\(textNote)"
-
         let payload = CapturePayload(
             imageBase64: pngData.base64EncodedString(),
-            ocrText: combinedOCR,
+            ocrText: ocrText,
             appName: capture.appName,
             windowTitle: capture.windowTitle,
             isPrivate: isPrivate,

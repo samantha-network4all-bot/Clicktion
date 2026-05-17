@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AnnotationTool: Equatable {
-    case none, rectangle, freedraw, text
+    case none, rectangle, freedraw
 }
 
 // All geometry is stored in unit coordinates (0–1) relative to the
@@ -13,7 +13,6 @@ struct Annotation: Identifiable {
     enum Kind {
         case rectangle(CGRect)
         case freedraw([CGPoint])   // unit-coordinate point sequence
-        case text(String, CGPoint) // content + unit-coordinate anchor
     }
 }
 
@@ -32,8 +31,6 @@ extension NSImage {
                 drawRect(rect, in: size)
             case .freedraw(let points):
                 drawFreedraw(points, in: size)
-            case .text(let content, let anchor):
-                drawText(content, at: anchor, in: size)
             }
         }
         result.unlockFocus()
@@ -112,14 +109,3 @@ private func drawFreedraw(_ points: [CGPoint], in imageSize: CGSize) {
     path.stroke()
 }
 
-private func drawText(_ content: String, at anchor: CGPoint, in imageSize: CGSize) {
-    let px = CGPoint(x: anchor.x * imageSize.width,
-                     y: (1 - anchor.y) * imageSize.height)
-    let attrs: [NSAttributedString.Key: Any] = [
-        .font: NSFont.systemFont(ofSize: max(14, imageSize.width / 40), weight: .semibold),
-        .foregroundColor: NSColor.white,
-        .backgroundColor: NSColor.black.withAlphaComponent(0.55)
-    ]
-    let str = NSAttributedString(string: content, attributes: attrs)
-    str.draw(at: px)
-}

@@ -42,10 +42,6 @@ struct CaptureDialogView: View {
                           isActive: vm.activeTool == .freedraw) {
                 vm.activeTool = vm.activeTool == .freedraw ? .none : .freedraw
             }
-            ToolbarButton(icon: "textformat", label: "Add note",
-                          isActive: vm.activeTool == .text) {
-                vm.activeTool = vm.activeTool == .text ? .none : .text
-            }
 
             Spacer()
 
@@ -105,9 +101,6 @@ struct CaptureDialogView: View {
             .frame(width: kDialogWidth - kCopySidebar, height: kThumbnailHeight)
             .background(Color.black)
             .clipped()
-            .overlay(alignment: .bottom) {
-                if vm.activeTool == .text { textNoteBar }
-            }
 
             // Copy-image button sidebar
             VStack(spacing: 0) {
@@ -122,22 +115,6 @@ struct CaptureDialogView: View {
             .frame(width: kCopySidebar, height: kThumbnailHeight)
             .background(Color(nsColor: .windowBackgroundColor))
         }
-    }
-
-    private var textNoteBar: some View {
-        HStack(spacing: 8) {
-            TextField("Add a markdown note…", text: $vm.textNote)
-                .textFieldStyle(.plain)
-                .font(.system(.body, design: .monospaced))
-                .onSubmit { vm.commitTextAnnotation() }
-            Button("Add") { vm.commitTextAnnotation() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(vm.textNote.trimmingCharacters(in: .whitespaces).isEmpty)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.regularMaterial)
     }
 
     // MARK: - OCR section (below thumbnail, full width)

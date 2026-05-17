@@ -240,15 +240,6 @@ final class DrawingNSView: NSView {
             }
             ctx.strokePath()
 
-        case .text(let content, let anchor):
-            let pt = denorm(anchor, in: displayRect)
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 15, weight: .semibold),
-                .foregroundColor: NSColor.white,
-                .backgroundColor: NSColor.black.withAlphaComponent(0.55)
-            ]
-            NSAttributedString(string: content, attributes: attrs).draw(at: pt)
-
         default: break
         }
         ctx.restoreGState()
