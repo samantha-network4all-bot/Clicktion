@@ -96,8 +96,8 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Job already finished — send the full content immediately.
-	// Live queries stream token-by-token; replays show the result at once.
+	// Job already finished (no active stream found) — replay from DB word by word
+	// so the Swift client receives many tokens rather than one giant block.
 	job, err := h.db.GetJob(id)
 	if err != nil {
 		httpError(w, err, http.StatusNotFound)
@@ -109,10 +109,23 @@ func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, m := range messages {
-		if m.Role == "assistant" && m.Content != "" {
-			fmt.Fprintf(w, "data: %s\n\n", sseEscape(m.Content))
+		if m.Role != "assistant" || m.Content == "" {
+			continue
+		}
+		// Split on spaces so each word arrives as a separate SSE event,
+		// giving the Swift client the same token-by-token experience as a live stream.
+		words := strings.Fields(m.Content)
+		for i, word := range words {
+			token := word
+			if i < len(words)-1 {
+				token += " "
+			}
+			fmt.Fprintf(w, "data: %s\n\n", sseEscape(token))
 			flusher.Flush()
 		}
+		// Preserve paragraph breaks between messages
+		fmt.Fprintf(w, "data: \n\n")
+		flusher.Flush()
 	}
 	fmt.Fprintf(w, "data: [DONE]\n\n")
 	flusher.Flush()

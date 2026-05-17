@@ -23,7 +23,7 @@ type jobStream struct {
 }
 
 func newJobStream() *jobStream {
-	return &jobStream{ch: make(chan string, 512)}
+	return &jobStream{ch: make(chan string, 4096)}
 }
 
 func (s *jobStream) push(token string) {
@@ -52,13 +52,18 @@ var activeStreams sync.Map // string(jobID) → *jobStream
 
 // runJob registers the stream immediately (before the goroutine starts) to
 // eliminate the race where the SSE client connects before Store is called.
+// The stream stays in activeStreams for 2 minutes after the job finishes so
+// a client that connects after the LLM is done (fast local models) can still
+// read the buffered tokens from the channel rather than falling into the
+// one-shot replay path.
 func (h *handler) runJob(jobID string) {
 	stream := newJobStream()
 	activeStreams.Store(jobID, stream)
 
 	go func() {
-		defer activeStreams.Delete(jobID)
-
+		// Do NOT defer activeStreams.Delete here — keep the stream alive so
+		// late-connecting SSE clients can drain the buffered channel.
+		// A separate goroutine cleans up after a TTL.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
@@ -66,11 +71,15 @@ func (h *handler) runJob(jobID string) {
 			log.Printf("job %s failed: %v", jobID, err)
 			stream.finish(err)
 			h.db.UpdateJobStatus(jobID, "failed")
+			// Still schedule cleanup
+			go func() { time.Sleep(2 * time.Minute); activeStreams.Delete(jobID) }()
 			return
 		}
 
 		stream.finish(nil)
 		h.db.UpdateJobStatus(jobID, "done")
+		// Schedule cleanup so the map doesn't grow forever.
+		go func() { time.Sleep(2 * time.Minute); activeStreams.Delete(jobID) }()
 	}()
 }
 
