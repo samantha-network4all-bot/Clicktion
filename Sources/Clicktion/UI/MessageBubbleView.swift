@@ -26,6 +26,7 @@ struct MessageBubbleView: View {
             VStack(alignment: .leading, spacing: 8) {
                 assistantContent
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -87,9 +88,13 @@ struct MessageBubbleView: View {
             markdown: normalised,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         ) {
-            Text(attr).textSelection(.enabled)
+            Text(attr)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text(raw).textSelection(.enabled)
+            Text(raw)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
