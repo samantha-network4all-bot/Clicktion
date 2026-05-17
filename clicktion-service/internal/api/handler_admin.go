@@ -147,6 +147,16 @@ func (h *handler) adminModelEdit(w http.ResponseWriter, r *http.Request, id stri
 func (h *handler) adminModelUpdate(w http.ResponseWriter, r *http.Request, id string) {
 	m := modelFromForm(r)
 	m.ID = id
+	// Enforce single default: clear others before writing this model.
+	if m.IsDefault {
+		if err := h.db.SetDefaultModel(id); err != nil {
+			renderTemplate(w, adminModelFormTmpl, "admin_model_form.html", adminModelFormData{
+				Model:  m,
+				Errors: map[string]string{"_": err.Error()},
+			})
+			return
+		}
+	}
 	if err := h.db.UpdateModel(m); err != nil {
 		renderTemplate(w, adminModelFormTmpl, "admin_model_form.html", adminModelFormData{
 			Model:  m,
@@ -186,11 +196,9 @@ func (h *handler) adminModelTest(w http.ResponseWriter, r *http.Request, id stri
 }
 
 func (h *handler) adminModelSetDefault(w http.ResponseWriter, r *http.Request, id string) {
-	// Clear existing default, set new one
-	models, _ := h.db.ListModels()
-	for _, m := range models {
-		m.IsDefault = m.ID == id
-		h.db.UpdateModel(m)
+	if err := h.db.SetDefaultModel(id); err != nil {
+		redirect(w, r, "/admin/models?msg=Error:+could+not+set+default")
+		return
 	}
 	redirect(w, r, "/admin/models?msg=Default+model+updated")
 }

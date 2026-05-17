@@ -93,19 +93,25 @@ func (d *DB) FallbackChain(localOnly bool) ([]Model, error) {
 	return out, rows.Err()
 }
 
-func (d *DB) CreateModel(m Model) (Model, error) {
-	m.ID = newID()
+// SetDefaultModel clears is_default on every model then marks only id as default.
+func (d *DB) SetDefaultModel(id string) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
-		return m, err
+		return err
 	}
 	defer tx.Rollback()
-	if m.IsDefault {
-		if _, err = tx.Exec(`UPDATE models SET is_default = 0`); err != nil {
-			return m, err
-		}
+	if _, err = tx.Exec(`UPDATE models SET is_default = 0`); err != nil {
+		return err
 	}
-	_, err = tx.Exec(`
+	if _, err = tx.Exec(`UPDATE models SET is_default = 1 WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (d *DB) CreateModel(m Model) (Model, error) {
+	m.ID = newID()
+	_, err := d.sql.Exec(`
 		INSERT INTO models (id, name, base_url, api_key, model_name,
 		                    is_local, is_local_override, is_default, fallback_order)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -114,30 +120,20 @@ func (d *DB) CreateModel(m Model) (Model, error) {
 	if err != nil {
 		return m, err
 	}
-	return m, tx.Commit()
+	if m.IsDefault {
+		err = d.SetDefaultModel(m.ID)
+	}
+	return m, err
 }
 
 func (d *DB) UpdateModel(m Model) error {
-	tx, err := d.sql.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if m.IsDefault {
-		if _, err = tx.Exec(`UPDATE models SET is_default = 0 WHERE id != ?`, m.ID); err != nil {
-			return err
-		}
-	}
-	_, err = tx.Exec(`
+	_, err := d.sql.Exec(`
 		UPDATE models SET name=?, base_url=?, api_key=?, model_name=?,
 		                  is_local=?, is_local_override=?, is_default=?, fallback_order=?
 		WHERE id=?`,
 		m.Name, m.BaseURL, m.APIKey, m.ModelName,
 		m.IsLocal, m.IsLocalOverride, m.IsDefault, m.FallbackOrder, m.ID)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+	return err
 }
 
 func (d *DB) DeleteModel(id string) error {
