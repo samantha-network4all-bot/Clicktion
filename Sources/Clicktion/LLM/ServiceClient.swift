@@ -39,32 +39,46 @@ final class ServiceClient {
         try await post("/api/captures", body: payload)
     }
 
-    // onToken is async so streamJob suspends between tokens while the caller
-    // processes each one. This creates real back-pressure: the network read
-    // loop doesn't advance until the caller's await Task.yield() completes,
-    // giving SwiftUI a render opportunity between every token.
+    // Parses SSE byte-by-byte rather than via .lines because
+    // URLSession.AsyncBytes.AsyncLineSequence silently drops empty lines —
+    // which destroys SSE event boundaries (data: \n\n) and causes every
+    // token to accumulate into a single dispatch at [DONE].
     func streamJob(id: String, onToken: @escaping (String) async -> Void) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/api/jobs/\(id)/stream"),
                                  timeoutInterval: .infinity)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
 
         let (bytes, _) = try await URLSession.shared.bytes(for: request)
-        // SSE events may span multiple data: lines (sseEscape splits \n into
-        // consecutive data: lines). Accumulate them before dispatching.
-        var pending = ""
-        for try await line in bytes.lines {
-            if line.hasPrefix("data: ") {
-                let chunk = String(line.dropFirst(6))
-                if chunk == "[DONE]" {
-                    if !pending.isEmpty { await onToken(pending); pending = "" }
-                    break
+
+        var lineBuf: [UInt8] = []
+        var dataLines: [String] = []
+
+        func dispatchEvent() async {
+            guard !dataLines.isEmpty else { return }
+            let token = dataLines.joined(separator: "\n")
+            dataLines.removeAll(keepingCapacity: true)
+            if token == "[DONE]" { return }
+            await onToken(token)
+        }
+
+        for try await byte in bytes {
+            if byte == 0x0A { // newline
+                let line = String(decoding: lineBuf, as: UTF8.self)
+                lineBuf.removeAll(keepingCapacity: true)
+                if line.isEmpty {
+                    await dispatchEvent()
+                } else if line.hasPrefix("data: ") {
+                    dataLines.append(String(line.dropFirst(6)))
+                } else if line.hasPrefix("data:") {
+                    dataLines.append(String(line.dropFirst(5)))
                 }
-                pending = pending.isEmpty ? chunk : pending + "\n" + chunk
-            } else if line.isEmpty, !pending.isEmpty {
-                await onToken(pending)
-                pending = ""
+                // Ignore comment lines (start with :) and other field types.
+            } else if byte != 0x0D { // skip \r
+                lineBuf.append(byte)
             }
         }
+        await dispatchEvent()
     }
 
     func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil,
