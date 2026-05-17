@@ -1,9 +1,10 @@
 import SwiftUI
 
 private let kDialogWidth: CGFloat     = 672
-private let kDialogHeight: CGFloat    = 580   // fixed — prevents window auto-resize crash
-private let kThumbnailHeight: CGFloat = 260
+private let kDialogHeight: CGFloat    = 640   // fixed — prevents window auto-resize crash
+private let kThumbnailHeight: CGFloat = 360
 private let kCopySidebar: CGFloat     = 36    // width of the copy-button column beside thumbnail
+private let kOCRPreviewSentences      = 5     // OCR preview cap; full text still sent to LLM
 
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
@@ -157,11 +158,19 @@ struct CaptureDialogView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
                 } else {
-                    Text(vm.ocrText)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                    let (preview, hiddenCount) = firstSentences(vm.ocrText, limit: kOCRPreviewSentences)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(preview)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if hiddenCount > 0 {
+                            Text("+ \(hiddenCount) more sentence\(hiddenCount == 1 ? "" : "s") (full text is sent to the LLM)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(12)
                 }
             }
         }
@@ -286,6 +295,25 @@ struct CaptureDialogView: View {
         .labelsHidden()
         .frame(width: 220)
     }
+}
+
+// MARK: - Sentence preview helper
+
+/// Returns the first `limit` sentences of `text` plus the count of remaining
+/// sentences. Sentence boundaries use NaturalLanguage's tokenizer so it
+/// handles punctuation, line breaks and Unicode terminators correctly.
+private func firstSentences(_ text: String, limit: Int) -> (preview: String, hidden: Int) {
+    var sentences: [String] = []
+    text.enumerateSubstrings(in: text.startIndex..<text.endIndex,
+                             options: [.bySentences, .localized]) { sub, _, _, _ in
+        if let s = sub?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
+            sentences.append(s)
+        }
+    }
+    guard !sentences.isEmpty else { return (text, 0) }
+    let take = min(limit, sentences.count)
+    let preview = sentences.prefix(take).joined(separator: " ")
+    return (preview, sentences.count - take)
 }
 
 // MARK: - Copy button
