@@ -1,6 +1,7 @@
 import SwiftUI
 
-private let kDialogWidth: CGFloat = 672   // 560 × 1.2
+private let kDialogWidth: CGFloat  = 672   // 560 × 1.2
+private let kDialogHeight: CGFloat = 660   // fixed — prevents window auto-resize crash
 
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
@@ -10,14 +11,34 @@ struct CaptureDialogView: View {
     var body: some View {
         VStack(spacing: 0) {
             annotationToolbar
+            if vm.capture.appName != nil || vm.capture.windowTitle != nil {
+                appNameBar
+            }
             thumbnailWithCanvas
             Divider()
             ocrSection
             Divider()
             controlsSection
         }
-        .frame(width: kDialogWidth)
+        .frame(width: kDialogWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
+    }
+
+    private var appNameBar: some View {
+        HStack(spacing: 4) {
+            if let app = vm.capture.appName {
+                Text(app).fontWeight(.medium)
+            }
+            if let title = vm.capture.windowTitle {
+                Text("—").foregroundStyle(.secondary)
+                Text(title).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+            }
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.85))
     }
 
     // MARK: - Annotation toolbar
@@ -124,6 +145,21 @@ struct CaptureDialogView: View {
     private var ocrSection: some View {
         ScrollView {
             Group {
+                if vm.capture.appName != nil || vm.capture.windowTitle != nil {
+                    HStack(spacing: 4) {
+                        if let app = vm.capture.appName {
+                            Text(app).fontWeight(.medium)
+                        }
+                        if let title = vm.capture.windowTitle {
+                            Text("—").foregroundStyle(.secondary)
+                            Text(title).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                        }
+                    }
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
                 if vm.isOCRRunning {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
@@ -160,7 +196,7 @@ struct CaptureDialogView: View {
 
     private var controlsSection: some View {
         VStack(spacing: 12) {
-            sourceInfo
+            Spacer(minLength: 0)
             if let error = vm.errorMessage {
                 Text(error)
                     .font(.caption)
