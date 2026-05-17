@@ -23,7 +23,7 @@ struct SettingsView: View {
                 PrivacyTab()
             }
         }
-        .frame(width: 360, height: 520)
+        .frame(width: 360, height: 560)
     }
 
     private func tabButton(_ label: String, tag: Int) -> some View {
@@ -152,6 +152,7 @@ private struct GeneralTab: View {
                     .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
             }
             .listStyle(.plain)
+            .frame(height: 240)
             .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color(nsColor: .separatorColor)))
             .onAppear {

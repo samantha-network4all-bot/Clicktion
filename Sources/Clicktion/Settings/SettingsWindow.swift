@@ -18,7 +18,7 @@ final class SettingsWindow {
         let win = NSWindow(contentViewController: controller)
         win.title = "Settings"
         win.styleMask = [.titled, .closable]
-        win.setContentSize(NSSize(width: 360, height: 500))
+        win.setContentSize(NSSize(width: 360, height: 560))
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
