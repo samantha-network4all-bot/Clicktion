@@ -29,7 +29,7 @@ final class SkillEditorViewModel: ObservableObject {
                 skills[idx] = skill
             } else {
                 skills.append(skill)
-                skills.sort { $0.name < $1.name }
+                persistOrder()
             }
             selectedID = skill.id
         } catch {
@@ -42,9 +42,19 @@ final class SkillEditorViewModel: ObservableObject {
             try SkillLoader.shared.delete(skill)
             skills.removeAll { $0.id == skill.id }
             selectedID = skills.first?.id
+            persistOrder()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func move(from source: IndexSet, to destination: Int) {
+        skills.move(fromOffsets: source, toOffset: destination)
+        persistOrder()
+    }
+
+    private func persistOrder() {
+        SkillLoader.shared.saveOrder(skills.map(\.filename))
     }
 
     func newSkill() -> Skill {

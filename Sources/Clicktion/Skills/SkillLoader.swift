@@ -18,9 +18,37 @@ final class SkillLoader {
             includingPropertiesForKeys: nil
         ).filter { $0.pathExtension == "md" }
 
-        return mdFiles.compactMap { mdURL in
-            try? load(from: mdURL)
-        }.sorted { $0.name < $1.name }
+        let skills = mdFiles.compactMap { try? load(from: $0) }
+        return applyCustomOrder(skills)
+    }
+
+    // MARK: - Custom ordering
+
+    private static let orderKey = "skillOrder"
+
+    private var customOrder: [String] {
+        get { UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: Self.orderKey) }
+    }
+
+    /// Sort skills by the user-defined order. Skills not in the order list
+    /// (e.g. newly added) are appended alphabetically at the end.
+    private func applyCustomOrder(_ skills: [Skill]) -> [Skill] {
+        let order = customOrder
+        let positions = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return skills.sorted { a, b in
+            switch (positions[a.filename], positions[b.filename]) {
+            case let (l?, r?): return l < r
+            case (_?, nil):    return true
+            case (nil, _?):    return false
+            case (nil, nil):   return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+        }
+    }
+
+    /// Persist a new order. Pass the filenames of all skills in the desired order.
+    func saveOrder(_ filenames: [String]) {
+        customOrder = filenames
     }
 
     func load(from mdURL: URL) throws -> Skill {

@@ -54,10 +54,15 @@ struct SkillEditorView: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        List(vm.skills, selection: $vm.selectedID) { skill in
-            SkillRowView(skill: skill)
-                .tag(skill.id)
-                .onTapGesture { switchTo(skill.id) }
+        List(selection: $vm.selectedID) {
+            ForEach(vm.skills) { skill in
+                SkillRowView(skill: skill)
+                    .tag(skill.id)
+                    .onTapGesture { switchTo(skill.id) }
+            }
+            .onMove { from, to in
+                vm.move(from: from, to: to)
+            }
         }
         .listStyle(.sidebar)
         .frame(minWidth: 220)
@@ -124,8 +129,17 @@ struct SkillRowView: View {
     let skill: Skill
 
     var body: some View {
-        Text(skill.name)
-            .font(.body)
-            .padding(.vertical, 2)
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .help("Drag to reorder")
+            Image(systemName: skill.icon)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(skill.name).font(.body)
+        }
+        .padding(.vertical, 2)
     }
 }
