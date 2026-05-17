@@ -179,7 +179,6 @@ struct ThinkingStreamView: View {
 
 struct ThinkingDotsView: View {
     @State private var phase = 0
-    private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
     var body: some View {
         HStack(spacing: 4) {
             ForEach(0..<3) { i in
@@ -189,13 +188,17 @@ struct ThinkingDotsView: View {
                     .animation(.easeInOut(duration: 0.3), value: phase)
             }
         }
-        .onReceive(timer) { _ in phase = (phase + 1) % 3 }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                phase = (phase + 1) % 3
+            }
+        }
     }
 }
 
 struct StreamingDotsView: View {
     @State private var phase = 0
-    private let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
     var body: some View {
         HStack(spacing: 3) {
             ForEach(0..<3) { i in
@@ -203,6 +206,11 @@ struct StreamingDotsView: View {
                     .foregroundStyle(Color.secondary.opacity(i == phase ? 0.8 : 0.2))
             }
         }
-        .onReceive(timer) { _ in phase = (phase + 1) % 3 }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(400))
+                phase = (phase + 1) % 3
+            }
+        }
     }
 }
