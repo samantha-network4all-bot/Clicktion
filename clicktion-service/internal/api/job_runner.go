@@ -136,7 +136,9 @@ func (h *handler) streamWithModel(
 	messages := buildMessages(job, capture, history, job.SendImage)
 
 	var fullResponse string
+	var receivedAnyToken bool
 	result, err := client.Stream(ctx, messages, func(token string) {
+		receivedAnyToken = true
 		if !strings.HasPrefix(token, "\x01") {
 			fullResponse += token
 		}
@@ -146,11 +148,12 @@ func (h *handler) streamWithModel(
 		return result, err
 	}
 
-	// Treat an empty response as failure so the fallback chain can try the
-	// next model. This catches cases where a model returns HTTP 200 but
-	// streams no content (e.g. LM Studio when a model fails to load due to
-	// insufficient memory — it sometimes returns 200 with an empty stream).
-	if strings.TrimSpace(fullResponse) == "" {
+	// Treat a completely silent response as failure (no tokens at all) so the
+	// fallback chain tries the next model. This catches LM Studio returning
+	// HTTP 200 with an empty stream when a model can't load.
+	// We do NOT fail on thinking-only responses (receivedAnyToken=true but
+	// fullResponse="") — those are valid Qwen3-style reasoning outputs.
+	if !receivedAnyToken {
 		return result, fmt.Errorf("model returned empty response")
 	}
 
