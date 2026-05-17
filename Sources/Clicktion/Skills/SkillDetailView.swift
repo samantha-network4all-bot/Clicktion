@@ -55,35 +55,10 @@ struct SkillDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeader(title: "Identity", icon: "tag")
 
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Name", systemImage: "textformat").font(.caption).foregroundStyle(.secondary)
-                    TextField("Skill name", text: $draft.name)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Icon (SF Symbol)", systemImage: "sparkles").font(.caption).foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        TextField("envelope", text: $draft.icon)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 160)
-                        Image(systemName: draft.icon)
-                            .font(.title2)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 28, height: 28)
-                    }
-                }
-            }
-
             VStack(alignment: .leading, spacing: 6) {
-                Label("Trigger keywords (comma-separated)", systemImage: "text.magnifyingglass")
-                    .font(.caption).foregroundStyle(.secondary)
-                TextField("error, exception, crash, stack trace", text: $triggersText)
+                Label("Name", systemImage: "textformat").font(.caption).foregroundStyle(.secondary)
+                TextField("Skill name", text: $draft.name)
                     .textFieldStyle(.roundedBorder)
-                if !draft.triggers.isEmpty {
-                    TriggerChipsView(triggers: draft.triggers)
-                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
