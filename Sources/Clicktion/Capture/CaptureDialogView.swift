@@ -1,6 +1,7 @@
 import SwiftUI
 
-private let kDialogWidth: CGFloat     = 672
+private let kSkillsWidth: CGFloat     = 200   // left sidebar with clickable skills
+private let kDialogWidth: CGFloat     = 672   // width of the main content column (right of sidebar)
 private let kDialogHeight: CGFloat    = 600   // fixed — prevents window auto-resize crash
 private let kThumbnailHeight: CGFloat = 360
 private let kCopySidebar: CGFloat     = 36    // width of the copy-button column beside thumbnail
@@ -15,17 +16,93 @@ struct CaptureDialogView: View {
     @State private var showAdvanced = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            annotationToolbar
-            thumbnailRow
+        HStack(spacing: 0) {
+            skillsSidebar
             Divider()
-            ocrSection
-            Divider()
-            bottomBar
-            advancedSection
+            VStack(spacing: 0) {
+                annotationToolbar
+                thumbnailRow
+                Divider()
+                ocrSection
+                Divider()
+                bottomBar
+                advancedSection
+            }
+            .frame(width: kDialogWidth)
         }
-        .frame(width: kDialogWidth, height: kDialogHeight)
+        .frame(width: kSkillsWidth + 1 + kDialogWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
+    }
+
+    // MARK: - Skills sidebar
+
+    private var skillsSidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(Color.accentColor)
+                    .font(.caption)
+                Text("Skills").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Spacer()
+                if vm.isSuggestingSkill {
+                    ProgressView().controlSize(.small).scaleEffect(0.7)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .overlay(Divider(), alignment: .bottom)
+
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(vm.availableSkills) { skill in
+                        skillRow(skill)
+                    }
+                }
+                .padding(6)
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+        }
+        .frame(width: kSkillsWidth)
+    }
+
+    private func skillRow(_ skill: Skill) -> some View {
+        let isSuggested = vm.selectedSkill?.id == skill.id
+        return Button {
+            triggerSkill(skill)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: skill.icon)
+                    .foregroundStyle(isSuggested ? Color.accentColor : .secondary)
+                    .frame(width: 18)
+                Text(skill.name)
+                    .font(.callout)
+                    .foregroundStyle(isSuggested ? Color.accentColor : Color.primary)
+                    .lineLimit(1).truncationMode(.tail)
+                Spacer()
+                if isSuggested {
+                    Image(systemName: "sparkle")
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                        .help("Suggested for this capture")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(isSuggested ? Color.accentColor.opacity(0.10) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isSending)
+    }
+
+    private func triggerSkill(_ skill: Skill) {
+        guard !vm.isSending else { return }
+        vm.selectedSkill = skill
+        vm.skillDidChange(skill)
+        vm.send { jobID, captureID, sk in onSend(jobID, captureID, sk) }
     }
 
     // MARK: - Annotation toolbar (no copy button here)
@@ -176,20 +253,11 @@ struct CaptureDialogView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
-            if vm.isSuggestingSkill {
+            if vm.isSending {
                 ProgressView().controlSize(.small)
-                Text("Analyzing…").font(.callout).foregroundStyle(.secondary)
+                Text("Sending…").font(.callout).foregroundStyle(.secondary)
             } else {
-                Image(systemName: "sparkles").foregroundStyle(.secondary).font(.callout)
-                Picker("Skill", selection: $vm.selectedSkill) {
-                    Text("No skill").tag(Optional<Skill>.none)
-                    ForEach(vm.availableSkills) { skill in
-                        Label(skill.name, systemImage: skill.icon).tag(Optional(skill))
-                    }
-                }
-                .labelsHidden()
-                .frame(minWidth: 160)
-                .onChange(of: vm.selectedSkill) { _, skill in vm.skillDidChange(skill) }
+                Text("Click a skill to run").font(.caption).foregroundStyle(.tertiary)
             }
 
             Spacer()
@@ -200,15 +268,6 @@ struct CaptureDialogView: View {
 
             Button("Cancel", role: .cancel) { onCancel() }
                 .keyboardShortcut(.escape, modifiers: [])
-
-            Button {
-                vm.send { jobID, captureID, skill in onSend(jobID, captureID, skill) }
-            } label: {
-                HStack(spacing: 4) { Text("Action"); Image(systemName: "arrow.right") }
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.return, modifiers: [])
-            .disabled(vm.isSuggestingSkill || vm.isSending)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
