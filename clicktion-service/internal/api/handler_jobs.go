@@ -180,6 +180,12 @@ func (h *handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		Role:      "user",
 		Content:   body.Message,
 	})
+	// Mirror into the notebook as a markdown cell (user input shows up
+	// between response cells like in Jupyter).
+	h.db.AppendCellByCapture(job.CaptureID, db.NotebookCell{
+		Kind:    db.CellMarkdown,
+		Content: body.Message,
+	})
 
 	// Re-run the job with updated history
 	h.db.UpdateJobStatus(id, "running")

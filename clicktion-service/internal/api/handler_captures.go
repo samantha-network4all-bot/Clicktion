@@ -21,12 +21,14 @@ type capturePayload struct {
 	AppName     *string         `json:"app_name"`
 	WindowTitle *string         `json:"window_title"`
 	IsPrivate   bool            `json:"is_private"`
+	IsTodo      bool            `json:"is_todo"` // true → snapshot for later, skip skill suggestion
 	SkillHint   *string         `json:"skill_hint"`
 	Skills      []llm.SkillInfo `json:"available_skills"`
 }
 
 type captureResponse struct {
-	ID            string  `json:"id"`
+	ID             string  `json:"id"`
+	NotebookID     string  `json:"notebook_id"`
 	SuggestedSkill *string `json:"suggested_skill"`
 }
 
@@ -56,15 +58,33 @@ func (h *handler) createCapture(w http.ResponseWriter, r *http.Request) {
 		AppName:     p.AppName,
 		WindowTitle: p.WindowTitle,
 		IsPrivate:   p.IsPrivate,
+		IsTodo:      p.IsTodo,
 	})
 	if err != nil {
 		httpError(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	// Pre-select skill asynchronously (fast non-streaming call)
+	// Auto-create the notebook that wraps this capture. Every capture lives
+	// in its own notebook — see docs/website-feature-review.md (decision 9).
+	title := buildNotebookTitle(p.AppName, p.WindowTitle)
+	notebook, err := h.db.CreateNotebook(title, p.IsTodo)
+	if err != nil {
+		httpError(w, err, http.StatusInternalServerError)
+		return
+	}
+	if _, err := h.db.AppendCell(db.NotebookCell{
+		NotebookID: notebook.ID,
+		Kind:       db.CellCapture,
+		CaptureID:  &capture.ID,
+	}); err != nil {
+		httpError(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Todo snapshots skip skill suggestion — user picked "save for later", not "process now".
 	var suggested *string
-	if len(p.Skills) > 0 {
+	if !p.IsTodo && len(p.Skills) > 0 {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
@@ -86,7 +106,26 @@ func (h *handler) createCapture(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	jsonOK(w, captureResponse{ID: capture.ID, SuggestedSkill: suggested})
+	jsonOK(w, captureResponse{
+		ID:             capture.ID,
+		NotebookID:     notebook.ID,
+		SuggestedSkill: suggested,
+	})
+}
+
+// buildNotebookTitle mirrors the title pattern used in the Mac capture
+// dialog header: "App — Window".
+func buildNotebookTitle(app, window *string) string {
+	switch {
+	case app != nil && window != nil:
+		return *app + " — " + *window
+	case app != nil:
+		return *app
+	case window != nil:
+		return *window
+	default:
+		return ""
+	}
 }
 
 func (h *handler) listCaptures(w http.ResponseWriter, r *http.Request) {

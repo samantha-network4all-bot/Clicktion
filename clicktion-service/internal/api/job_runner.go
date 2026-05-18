@@ -163,11 +163,24 @@ func (h *handler) streamWithModel(
 		return result, fmt.Errorf("model returned empty response")
 	}
 
+	trimmed := strings.TrimSpace(fullResponse)
 	h.db.AddChatMessage(db.ChatMessage{
 		CaptureID: job.CaptureID,
 		Role:      "assistant",
-		Content:   strings.TrimSpace(fullResponse),
+		Content:   trimmed,
 	})
+
+	// Mirror the assistant turn into the notebook as a response cell.
+	var skillPtr *string
+	if job.SkillName != nil && *job.SkillName != "" {
+		skillPtr = job.SkillName
+	}
+	cell := db.NotebookCell{
+		Kind:      db.CellResponse,
+		Content:   trimmed,
+		SkillName: skillPtr,
+	}
+	h.db.AppendCellByCapture(job.CaptureID, cell)
 
 	return result, nil
 }

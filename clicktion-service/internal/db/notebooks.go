@@ -95,6 +95,19 @@ func (d *DB) AppendCell(c NotebookCell) (NotebookCell, error) {
 	return c, err
 }
 
+// AppendCellByCapture finds the notebook owning the given capture (via the
+// primary capture cell) and appends a cell to it. Useful from job-runner
+// callsites that only know the capture_id. No-op if the notebook is missing.
+func (d *DB) AppendCellByCapture(captureID string, cell NotebookCell) error {
+	nb, err := d.NotebookForCapture(captureID)
+	if err != nil || nb == nil {
+		return err
+	}
+	cell.NotebookID = nb.ID
+	_, err = d.AppendCell(cell)
+	return err
+}
+
 // MarkNotebookDone flips todo_done=1 on an open todo notebook.
 func (d *DB) MarkNotebookDone(id string) error {
 	_, err := d.sql.Exec(
