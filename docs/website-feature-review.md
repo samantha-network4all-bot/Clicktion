@@ -119,10 +119,10 @@ Migration of existing data:
 3. Edit OCR text on a capture cell → re-run.
 4. Date-range filter + sort dropdown on Archived data.
 
-**P3 — Full Jupyter parity** *(P3.1 + P3.2 shipped; P3.3 deferred)*
+**P3 — Full Jupyter parity** *(all three shipped, two in their simplest form)*
 1. ✅ Markdown cells (add between any two cells).
-2. ✅ Multi-capture notebooks — append a capture from the browser via file upload. *(“Add to existing notebook” from the Mac app is still TODO.)*
-3. ⏸ Chain references (cell B's prompt interpolates cell A's output) — **deferred**. Multi-capture notebooks raise design questions about which capture a follow-up/regenerate should target, whether each capture cell deserves its own "Run skill" lane, and the syntax / preview UX for interpolations. A short grilling session before code.
+2. ✅ Multi-capture notebooks — append a capture from the browser via file upload. *("Add to existing notebook" from the Mac app is still TODO.)*
+3. ✅ Chain references — implicit auto-context. When a job runs in a multi-capture notebook the OCR of *other* capture cells is appended to the user prompt under a clear separator. No template syntax, no per-cell UI. If explicit `@cell-N` references are needed later, they sit on top of this without changing the data model.
 
 ## Files that may be affected (per phase)
 
