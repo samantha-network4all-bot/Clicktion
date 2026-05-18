@@ -103,11 +103,23 @@
   <textarea name="message" placeholder="Ask a follow-up… (⌘↩ to send)" rows="2" autofocus></textarea>
   <button type="submit" class="btn btn-primary">Send</button>
 </form>
-<script src="/static/notebook.js"></script>
+{{else if and (not .Notebook.TodoDone) .Skills}}
+<!-- Skill picker — first-time run for a todo / fresh notebook -->
+<div id="skill-picker" class="skill-picker" data-notebook="{{.Notebook.ID}}">
+  <div class="skill-picker-title">Continue with…</div>
+  <div class="skill-picker-grid">
+    {{range .Skills}}
+    <button type="button" class="skill-chip" data-skill="{{.Name}}">
+      <span class="skill-chip-name">{{.Name}}</span>
+    </button>
+    {{end}}
+  </div>
+</div>
 {{else if not .Notebook.TodoDone}}
 <div class="empty-card" style="margin-top: 16px;">
-  <strong>No skill run yet.</strong>
-  Open the Mac app and pick a skill from the capture dialog to start a conversation. (Skill picker in the browser ships in P2.2.)
+  <strong>No skills installed.</strong>
+  Open the Mac app and add skills from the capture dialog or Edit Skills menu.
 </div>
 {{end}}
+<script src="/static/notebook.js"></script>
 {{end}}

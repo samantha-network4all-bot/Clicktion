@@ -713,6 +713,36 @@ nav {
 }
 .follow-up textarea:focus { outline: none; border-color: var(--accent); }
 
+.skill-picker {
+  margin-top: 16px; padding: 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.skill-picker-title {
+  font-size: 13px; font-weight: 600; color: var(--secondary);
+  margin-bottom: 10px;
+}
+.skill-picker-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.skill-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 80ms, background 80ms;
+}
+.skill-chip:hover:not(:disabled) { border-color: var(--accent); }
+.skill-chip:disabled { opacity: 0.4; cursor: default; }
+.skill-chip-active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+  opacity: 1 !important;
+}
+
 .streaming-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   background: var(--accent);

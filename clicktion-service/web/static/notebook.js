@@ -13,9 +13,10 @@
 
 (() => {
   const form = document.getElementById('follow-up-form');
-  if (!form) return;
+  const picker = document.getElementById('skill-picker');
+  if (!form && !picker) return;
 
-  const notebookID = form.dataset.notebook;
+  const notebookID = (form || picker).dataset.notebook;
   const cellsContainer = document.querySelector('.cells');
   const streamingCell = document.getElementById('streaming-cell');
   const streamingBody = document.getElementById('streaming-body');
@@ -52,7 +53,7 @@
 
   let inflight = null;
 
-  const startStream = (jobID) => {
+  const startStream = (jobID, onDone) => {
     streamingBody.textContent = '';
     streamingCell.style.display = '';
     streamingCell.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -69,6 +70,7 @@
         const text = accumulated.trim();
         if (text.length > 0) promoteStreamingCell(text);
         else streamingCell.style.display = 'none';
+        if (onDone) onDone();
         return;
       }
       // Thinking tokens are prefixed with \x01 by the Go service. Skip them
@@ -85,6 +87,39 @@
       streamingBody.textContent += '\n\n[stream error]';
     };
   };
+
+  // Skill picker — first-time skill run on a fresh / todo notebook.
+  if (picker) {
+    picker.querySelectorAll('.skill-chip').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (inflight) return;
+        const skillName = btn.dataset.skill;
+        // Optimistic UI: dim the picker, mark this one as active.
+        picker.querySelectorAll('.skill-chip').forEach((b) => (b.disabled = true));
+        btn.classList.add('skill-chip-active');
+        try {
+          const resp = await fetch(`/notebooks/${notebookID}/run-skill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skill_name: skillName }),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+          const { job_id } = await resp.json();
+          startStream(job_id, () => {
+            // On [DONE]: hide picker — refresh would show response cell now.
+            picker.style.display = 'none';
+          });
+        } catch (err) {
+          console.error(err);
+          picker.querySelectorAll('.skill-chip').forEach((b) => (b.disabled = false));
+          btn.classList.remove('skill-chip-active');
+          alert(`Could not start skill: ${err.message || err}`);
+        }
+      });
+    });
+  }
+
+  if (!form) return; // page is in skill-picker mode only
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
