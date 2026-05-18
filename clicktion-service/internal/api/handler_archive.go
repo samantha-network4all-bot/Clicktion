@@ -90,6 +90,13 @@ type capturePage struct {
 }
 
 func (h *handler) archiveCapture(w http.ResponseWriter, r *http.Request, id string) {
+	// Forward the legacy capture-detail URL to the new notebook view.
+	// /archive/captures/{captureID} → /notebooks/{notebookID}
+	if nb, err := h.db.NotebookForCapture(id); err == nil && nb != nil {
+		http.Redirect(w, r, "/notebooks/"+nb.ID, http.StatusMovedPermanently)
+		return
+	}
+	// Fallback (notebook missing for some reason): render the old page.
 	capture, err := h.db.GetCapture(id)
 	if err != nil {
 		http.NotFound(w, r)

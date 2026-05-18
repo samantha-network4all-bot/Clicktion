@@ -641,3 +641,65 @@ nav {
 .empty-card strong { color: var(--text); display: block; margin-bottom: 4px; font-weight: 600; }
 .empty-card em { font-style: normal; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
 .capture-card-todo { border-left: 3px solid #f59e0b; }
+
+/* ── Notebook detail (Jupyter-style cells) ── */
+.notebook-header { margin-bottom: 24px; }
+.notebook-title { font-size: 22px; font-weight: 600; margin: 0 0 8px 0; }
+.notebook-meta {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--secondary); font-size: 13px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.notebook-actions { margin-top: 4px; }
+
+.cells { display: flex; flex-direction: column; gap: 16px; }
+
+.cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.cell-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--secondary);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.cell-body { font-size: 14px; line-height: 1.55; color: var(--text); }
+.cell-body pre {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; margin: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  overflow-x: auto; white-space: pre-wrap;
+}
+.cell-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--secondary);
+  margin-top: 8px;
+}
+
+.cell-capture  { border-left-color: #6e6e73; }
+.cell-response { border-left-color: var(--accent); }
+.cell-markdown { border-left-color: #c65000; background: #fffaf4; }
+
+.cell-thumb { margin-bottom: 10px; }
+.cell-thumb img {
+  max-width: 100%; max-height: 380px; border-radius: 6px;
+  border: 1px solid var(--border); display: block;
+}
+
+.cell-ocr summary {
+  cursor: pointer; font-size: 12px; color: var(--secondary);
+  padding: 6px 0;
+}
+.cell-ocr .ocr-body {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px; margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; line-height: 1.5;
+  max-height: 280px; overflow-y: auto; white-space: pre-wrap;
+}

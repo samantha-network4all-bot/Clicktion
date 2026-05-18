@@ -1,0 +1,90 @@
+{{template "base" .}}
+
+{{define "title"}}
+{{if .Notebook.Title}}{{deref .Notebook.Title}} — {{end}}Notebook — Clicktion
+{{end}}
+
+{{define "nav-archive"}}class="active"{{end}}
+
+{{define "content"}}
+<a class="back-link" href="/archive">‹ Back</a>
+
+<!-- Header -->
+<div class="notebook-header">
+  <h1 class="notebook-title">
+    {{if .Notebook.Title}}{{deref .Notebook.Title}}{{else}}Untitled notebook{{end}}
+  </h1>
+  <div class="notebook-meta">
+    <span>Created {{timeAgo .Notebook.CreatedAt}}</span>
+    <span style="color:#aaa">·</span>
+    <span>Updated {{timeAgo .Notebook.UpdatedAt}}</span>
+    <span style="color:#aaa">·</span>
+    <span>{{len .Cells}} cell{{if ne (len .Cells) 1}}s{{end}}</span>
+    {{if .Notebook.IsTodo}}
+      {{if .Notebook.TodoDone}}
+        <span class="badge">✓ Done</span>
+      {{else}}
+        <span class="badge badge-todo">📌 Open todo</span>
+      {{end}}
+    {{end}}
+  </div>
+
+  {{if and .Notebook.IsTodo (not .Notebook.TodoDone)}}
+  <form class="notebook-actions" method="post" action="/notebooks/{{.Notebook.ID}}/done">
+    <button type="submit" class="btn btn-primary">Mark done</button>
+  </form>
+  {{end}}
+</div>
+
+<!-- Cells -->
+<div class="cells">
+  {{if not .Cells}}
+  <div class="empty-card">This notebook is empty.</div>
+  {{end}}
+
+  {{range .Cells}}
+
+  {{if eq (printf "%s" .Kind) "capture"}}
+    <div class="cell cell-capture">
+      <div class="cell-label">Capture</div>
+      {{if .Capture}}
+        {{if .Capture.ImagePath}}
+        <div class="cell-thumb">
+          <img src="/archive/images/{{.Capture.ID}}" alt="Capture">
+        </div>
+        {{end}}
+        {{if .Capture.OCRText}}
+        <details class="cell-ocr">
+          <summary>Extracted text ({{len .Capture.OCRText}} chars)</summary>
+          <pre class="ocr-body">{{.Capture.OCRText}}</pre>
+        </details>
+        {{end}}
+        <div class="cell-meta">
+          {{if .Capture.AppName}}<span>{{deref .Capture.AppName}}</span>{{end}}
+          {{if .Capture.WindowTitle}}<span style="color:#aaa">·</span><span>{{deref .Capture.WindowTitle}}</span>{{end}}
+          {{if .Capture.IsPrivate}}<span class="badge badge-private">🔒</span>{{else}}<span class="badge badge-public">🌐</span>{{end}}
+        </div>
+      {{else}}
+        <div class="empty-card">Capture image deleted (likely auto-pruned).</div>
+      {{end}}
+    </div>
+
+  {{else if eq (printf "%s" .Kind) "response"}}
+    <div class="cell cell-response">
+      <div class="cell-label">
+        Response
+        {{if .SkillName}}<span class="badge badge-skill">{{deref .SkillName}}</span>{{end}}
+      </div>
+      <div class="cell-body">{{renderContent .Content}}</div>
+    </div>
+
+  {{else if eq (printf "%s" .Kind) "markdown"}}
+    <div class="cell cell-markdown">
+      <div class="cell-label">You</div>
+      <div class="cell-body">{{renderContent .Content}}</div>
+    </div>
+  {{end}}
+
+  {{end}}
+</div>
+{{end}}

@@ -14,6 +14,7 @@ var (
 	archiveIndexTmpl   *template.Template
 	archiveCaptureTmpl *template.Template
 	workflowsTmpl      *template.Template
+	notebookTmpl       *template.Template
 
 	adminDashTmpl        *template.Template
 	adminModelsTmpl      *template.Template
@@ -88,6 +89,7 @@ func init() {
 	archiveIndexTmpl   = parse("base.html", "archive.html")
 	archiveCaptureTmpl = parse("base.html", "capture.html")
 	workflowsTmpl      = parse("base.html", "workflows.html")
+	notebookTmpl       = parse("base.html", "notebook.html")
 
 	adminDashTmpl       = parse("base.html", "admin.html")
 	adminModelsTmpl     = parse("base.html", "admin_models.html")
