@@ -9,6 +9,7 @@ struct MenuView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            modelRow
             Divider()
             captureButton
             if state.openTodoCount > 0 {
@@ -27,10 +28,29 @@ struct MenuView: View {
             Text("Clicktion")
                 .font(.headline)
             Spacer()
-            ModelStatusIndicator()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 2)
+    }
+
+    private var modelRow: some View {
+        Button {
+            NSWorkspace.shared.open(AppState.shared.serviceURL.appendingPathComponent("/admin/models"))
+        } label: {
+            HStack {
+                ModelStatusIndicator()
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .help("Manage models")
     }
 
     private var captureButton: some View {
