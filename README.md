@@ -256,3 +256,15 @@ SQLite holds captures, chat threads, LLM call logs, model configs, and API keys.
 - **Local-only enforcement.** Private captures are blocked from being sent to non-local LLM endpoints at the **service** layer, not just the UI.
 - **No telemetry.** Nothing leaves your machine unless you configure a remote LLM and explicitly mark a capture as public.
 - **OCR runs on-device** via Apple's Vision framework — no third-party text recognition.
+
+---
+
+## License
+
+Source available under the [**PolyForm Noncommercial License 1.0.0**](LICENSE).
+
+- ✅ Free to read, fork, modify, and run for **non-commercial** purposes — personal use, study, hobby projects, charities, schools, research.
+- ❌ Commercial use (including reselling on the App Store or any other marketplace) requires a separate license from the copyright holder.
+- The official build distributed on the Mac App Store is sold under a separate commercial license held by the copyright holder.
+
+If you'd like to use Clicktion commercially, get in touch.
