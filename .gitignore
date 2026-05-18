@@ -22,3 +22,4 @@ Clicktion.app/Contents/_CodeSignature/
 *.db-wal
 *.db-shm
 .apikey
+Makefile.local

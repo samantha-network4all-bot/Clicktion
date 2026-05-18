@@ -35,7 +35,13 @@ install-skills:
 
 SUPPORT_DIR      := $(HOME)/Library/Application\ Support/Clicktion
 APP_BUNDLE       := Clicktion.app/Contents/MacOS/Clicktion
-SIGNING_IDENTITY := Apple Development: arjenkuindersma@gmail.com (C5HQ5K457G)
+
+# Code-signing identity. Defaults to ad-hoc ("-") so the project builds
+# without any developer cert. To use your own Apple Developer identity,
+# create an untracked Makefile.local with e.g.:
+#   SIGNING_IDENTITY = Apple Development: you@example.com (TEAMID)
+SIGNING_IDENTITY ?= -
+-include Makefile.local
 
 # Full rebuild + reinstall + relaunch
 dev: go-build swift-release bundle install-skills
