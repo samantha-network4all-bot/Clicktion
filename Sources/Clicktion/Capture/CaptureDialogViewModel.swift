@@ -13,7 +13,7 @@ final class CaptureDialogViewModel: ObservableObject {
     @Published var isSuggestingSkill: Bool = false
     @Published var isSending: Bool = false
     @Published var errorMessage: String?
-    @Published var sendImage: Bool = true
+    @Published var inputMode: Skill.InputMode = .imageAndText
     @Published var useThinkingProfile: Bool = true
 
     // Annotation state
@@ -83,7 +83,7 @@ final class CaptureDialogViewModel: ObservableObject {
                     record = try await doSubmitCapture()
                     captureRecord = record
                 }
-                let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill, sendImage: sendImage, useThinkingProfile: useThinkingProfile)
+                let job = try await ServiceClient.shared.startJob(captureID: record.id, skill: skill, inputMode: inputMode, useThinkingProfile: useThinkingProfile)
                 completion(job.id, record.id, skill)
             } catch {
                 errorMessage = error.localizedDescription
@@ -97,11 +97,11 @@ final class CaptureDialogViewModel: ObservableObject {
     private func loadSkills() {
         availableSkills = (try? SkillLoader.shared.loadAll()) ?? []
         selectedSkill = availableSkills.first
-        sendImage = selectedSkill?.inputMode != .textOnly
+        inputMode = selectedSkill?.inputMode ?? .imageAndText
     }
 
     func skillDidChange(_ skill: Skill?) {
-        sendImage = skill?.inputMode != .textOnly
+        inputMode = skill?.inputMode ?? .imageAndText
     }
 
     private func runOCR() {

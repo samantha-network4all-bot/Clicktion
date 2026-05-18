@@ -182,7 +182,7 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, s
 		messages = append(messages, llm.TextMessage(llm.RoleSystem, *job.SkillPrompt))
 	}
 
-	text := buildCaptureContext(capture)
+	text := buildCaptureContext(capture, job.SendOCR)
 	if sendImage && capture.ImagePath != "" {
 		imgData, err := os.ReadFile(capture.ImagePath)
 		if err == nil {
@@ -210,7 +210,7 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, s
 	return messages
 }
 
-func buildCaptureContext(capture *db.Capture) string {
+func buildCaptureContext(capture *db.Capture, sendOCR bool) string {
 	var sb strings.Builder
 	sb.WriteString("Analyze this screenshot.\n")
 	if capture.AppName != nil {
@@ -219,7 +219,7 @@ func buildCaptureContext(capture *db.Capture) string {
 	if capture.WindowTitle != nil {
 		sb.WriteString("Window: " + *capture.WindowTitle + "\n")
 	}
-	if capture.OCRText != "" {
+	if sendOCR && capture.OCRText != "" {
 		sb.WriteString("\nText visible on screen:\n" + capture.OCRText)
 	}
 	return sb.String()

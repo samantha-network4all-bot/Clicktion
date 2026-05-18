@@ -17,9 +17,6 @@ final class CaptureDialogWindow {
             self?.window?.close()
             self?.window = nil
             ChatWindowController.shared.open(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
-        } onCancel: { [weak self] in
-            self?.window?.close()
-            self?.window = nil
         }
 
         let controller = NSHostingController(rootView: view)
@@ -32,6 +29,16 @@ final class CaptureDialogWindow {
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        // Release our reference when the user closes the window via the
+        // titlebar's red close button — keeps memory + state clean.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: win,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.window = nil }
+        }
 
         window = win
     }

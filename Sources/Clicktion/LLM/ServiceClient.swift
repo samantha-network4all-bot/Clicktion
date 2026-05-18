@@ -96,7 +96,7 @@ final class ServiceClient {
         await dispatchEvent()
     }
 
-    func startJob(captureID: String, skill: Skill, sendImage: Bool? = nil,
+    func startJob(captureID: String, skill: Skill, inputMode: Skill.InputMode? = nil,
                   useThinkingProfile: Bool = true,
                   fresh: Bool = false) async throws -> JobRecord {
         struct Body: Encodable {
@@ -104,6 +104,7 @@ final class ServiceClient {
             let skillName: String
             let skillPrompt: String
             let sendImage: Bool
+            let sendOCR: Bool
             let masterPrompt: String
             let temperature: Double
             let maxTokens: Int
@@ -114,6 +115,7 @@ final class ServiceClient {
                 case skillName = "skill_name"
                 case skillPrompt = "skill_prompt"
                 case sendImage = "send_image"
+                case sendOCR = "send_ocr"
                 case masterPrompt = "master_prompt"
                 case temperature
                 case maxTokens = "max_tokens"
@@ -126,11 +128,13 @@ final class ServiceClient {
         let profile = useThinkingProfile
             ? AppState.shared.thinkingProfile
             : AppState.shared.nonThinkingProfile
+        let mode = inputMode ?? skill.inputMode
         return try await post("/api/jobs", body: Body(
             captureID: captureID,
             skillName: skill.name,
             skillPrompt: prompt,
-            sendImage: sendImage ?? (skill.inputMode == .imageAndText),
+            sendImage: mode.sendImage,
+            sendOCR: mode.sendOCR,
             masterPrompt: profile.systemPrompt,
             temperature: profile.temperature,
             maxTokens: profile.maxTokens,

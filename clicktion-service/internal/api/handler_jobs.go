@@ -14,6 +14,7 @@ type createJobRequest struct {
 	SkillName      string   `json:"skill_name"`
 	SkillPrompt    string   `json:"skill_prompt"`
 	SendImage      *bool    `json:"send_image"` // nil → default true (backward compat)
+	SendOCR        *bool    `json:"send_ocr"`   // nil → default true
 	MasterPrompt   string   `json:"master_prompt"`
 	Temperature    *float64 `json:"temperature"`    // nil or -1 → model default
 	MaxTokens      *int     `json:"max_tokens"`     // nil or 0 → model default
@@ -44,6 +45,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	skillName := req.SkillName
 	skillPrompt := req.SkillPrompt
 	sendImage := req.SendImage == nil || *req.SendImage // default true
+	sendOCR := req.SendOCR == nil || *req.SendOCR       // default true
 
 	var temperature float64 = -1 // -1 = model default
 	if req.Temperature != nil && *req.Temperature >= 0 {
@@ -63,6 +65,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		SkillName:      &skillName,
 		SkillPrompt:    &skillPrompt,
 		SendImage:      sendImage,
+		SendOCR:        sendOCR,
 		MasterPrompt:   req.MasterPrompt,
 		Temperature:    temperature,
 		MaxTokens:      maxTokens,

@@ -11,9 +11,6 @@ private let kOCRHeight: CGFloat       = 80    // 50% shorter than the previous f
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
     var onSend: (String?, String?, Skill?) -> Void
-    var onCancel: () -> Void
-
-    @State private var showAdvanced = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -23,8 +20,7 @@ struct CaptureDialogView: View {
                 Divider()
                 ocrSection
                 Divider()
-                bottomBar
-                advancedSection
+                inputModeBar
             }
             .frame(width: kDialogWidth)
             Divider()
@@ -32,6 +28,29 @@ struct CaptureDialogView: View {
         }
         .frame(width: kDialogWidth + 1 + kSkillsWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
+    }
+
+    private var inputModeBar: some View {
+        HStack(spacing: 8) {
+            if vm.isSending {
+                ProgressView().controlSize(.small)
+                Text("Sending…").font(.caption).foregroundStyle(.secondary)
+            } else if let error = vm.errorMessage {
+                Text(error).font(.caption).foregroundStyle(.orange).lineLimit(1)
+            }
+            Spacer()
+            Picker("", selection: $vm.inputMode) {
+                ForEach(Skill.InputMode.allCases, id: \.self) { mode in
+                    Label(mode.displayName, systemImage: mode.icon).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 280)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Skills sidebar
@@ -249,96 +268,6 @@ struct CaptureDialogView: View {
         }
     }
 
-    // MARK: - Bottom bar: skill picker + Cancel + Action
-
-    private var bottomBar: some View {
-        HStack(spacing: 12) {
-            if vm.isSending {
-                ProgressView().controlSize(.small)
-                Text("Sending…").font(.callout).foregroundStyle(.secondary)
-            } else {
-                Text("Click a skill to run").font(.caption).foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
-            if let error = vm.errorMessage {
-                Text(error).font(.caption).foregroundStyle(.orange).lineLimit(1)
-            }
-
-            Button("Cancel", role: .cancel) { onCancel() }
-                .keyboardShortcut(.escape, modifiers: [])
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    // MARK: - Advanced section (collapsible)
-
-    private var advancedSection: some View {
-        let privateOnly = AppState.shared.privacyMode == .privateOnly
-        return VStack(spacing: 0) {
-            Divider()
-            DisclosureGroup(isExpanded: $showAdvanced) {
-                VStack(alignment: .leading, spacing: 10) {
-                    // Profile picker
-                    HStack(spacing: 8) {
-                        Text("Profile")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Picker("", selection: $vm.useThinkingProfile) {
-                            Label("Thinking", systemImage: "brain").tag(true)
-                            Label("Direct", systemImage: "bolt").tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(width: 200)
-                    }
-
-                    HStack(spacing: 16) {
-                        if !privateOnly {
-                            privacyToggle
-                        }
-                        Spacer()
-                        inputModePicker
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-            } label: {
-                Text("Advanced")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(nsColor: .windowBackgroundColor))
-        }
-    }
-
-    private var privacyToggle: some View {
-        Toggle(isOn: $vm.isPrivate) {
-            Label(vm.isPrivate ? "Private" : "Public",
-                  systemImage: vm.isPrivate ? "lock.fill" : "globe")
-                .font(.callout)
-        }
-        .toggleStyle(.checkbox)
-        .help(vm.isPrivate
-              ? "Processed by local LLM only. No data leaves your network."
-              : "May be processed by a remote LLM.")
-    }
-
-    private var inputModePicker: some View {
-        Picker("", selection: $vm.sendImage) {
-            Label("Image + text", systemImage: "photo").tag(true)
-            Label("Text only", systemImage: "doc.text").tag(false)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 220)
-    }
 }
 
 // MARK: - Sentence preview helper

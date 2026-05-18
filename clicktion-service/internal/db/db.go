@@ -41,6 +41,7 @@ func (d *DB) runMigrations() error {
 		`ALTER TABLE jobs ADD COLUMN temperature REAL NOT NULL DEFAULT -1`,
 		`ALTER TABLE jobs ADD COLUMN max_tokens INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE jobs ADD COLUMN thinking_enabled INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN send_ocr INTEGER NOT NULL DEFAULT 1`,
 	}
 	for _, stmt := range alters {
 		if _, err := d.sql.Exec(stmt); err != nil {

@@ -25,21 +25,27 @@ struct Skill: Identifiable, Codable, Hashable {
 
     enum InputMode: String, Codable, CaseIterable, Hashable {
         case imageAndText = "image_and_text"
-        case textOnly = "text_only"
+        case imageOnly    = "image_only"
+        case textOnly     = "text_only"
 
         var displayName: String {
             switch self {
-            case .imageAndText: return "Image + OCR text"
-            case .textOnly:     return "OCR text only"
+            case .imageAndText: return "Image + Text"
+            case .imageOnly:    return "Image"
+            case .textOnly:     return "Text"
             }
         }
 
         var icon: String {
             switch self {
             case .imageAndText: return "photo.badge.checkmark"
+            case .imageOnly:    return "photo"
             case .textOnly:     return "doc.text"
             }
         }
+
+        var sendImage: Bool { self != .textOnly }
+        var sendOCR: Bool   { self != .imageOnly }
     }
 }
 

@@ -9,6 +9,7 @@ type Job struct {
 	SkillName       *string
 	SkillPrompt     *string
 	SendImage       bool    // whether to include the screenshot in the LLM request
+	SendOCR         bool    // whether to include OCR text in the prompt
 	MasterPrompt    string  // prepended as system message before skill prompt
 	Temperature     float64 // -1 = model default
 	MaxTokens       int     // 0 = model default
@@ -45,34 +46,39 @@ func (d *DB) CreateJob(j Job) (Job, error) {
 	if !j.SendImage {
 		sendImage = 0
 	}
+	sendOCR := 1
+	if !j.SendOCR {
+		sendOCR = 0
+	}
 	thinkingEnabled := 0
 	if j.ThinkingEnabled {
 		thinkingEnabled = 1
 	}
 	_, err := d.sql.Exec(`
 		INSERT INTO jobs (id, capture_id, model_id, skill_name, skill_prompt, send_image,
-		                  master_prompt, temperature, max_tokens, thinking_enabled, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+		                  send_ocr, master_prompt, temperature, max_tokens, thinking_enabled, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
 		j.ID, j.CaptureID, j.ModelID, j.SkillName, j.SkillPrompt, sendImage,
-		j.MasterPrompt, j.Temperature, j.MaxTokens, thinkingEnabled)
+		sendOCR, j.MasterPrompt, j.Temperature, j.MaxTokens, thinkingEnabled)
 	return j, err
 }
 
 func (d *DB) GetJob(id string) (*Job, error) {
 	var j Job
-	var sendImage, thinkingEnabled int
+	var sendImage, sendOCR, thinkingEnabled int
 	err := d.sql.QueryRow(`
-		SELECT id, capture_id, model_id, skill_name, skill_prompt, send_image,
+		SELECT id, capture_id, model_id, skill_name, skill_prompt, send_image, send_ocr,
 		       master_prompt, temperature, max_tokens, thinking_enabled,
 		       status, created_at, finished_at
 		FROM jobs WHERE id = ?`, id).Scan(
-		&j.ID, &j.CaptureID, &j.ModelID, &j.SkillName, &j.SkillPrompt, &sendImage,
+		&j.ID, &j.CaptureID, &j.ModelID, &j.SkillName, &j.SkillPrompt, &sendImage, &sendOCR,
 		&j.MasterPrompt, &j.Temperature, &j.MaxTokens, &thinkingEnabled,
 		&j.Status, &j.CreatedAt, &j.FinishedAt)
 	if err != nil {
 		return nil, err
 	}
 	j.SendImage = sendImage != 0
+	j.SendOCR = sendOCR != 0
 	j.ThinkingEnabled = thinkingEnabled != 0
 	return &j, nil
 }
