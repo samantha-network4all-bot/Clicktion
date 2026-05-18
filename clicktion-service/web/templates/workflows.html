@@ -1,0 +1,82 @@
+{{template "base" .}}
+
+{{define "title"}}Workflows — Clicktion{{end}}
+{{define "nav-workflows"}}class="active"{{end}}
+
+{{define "content"}}
+
+<!-- Open Todos -->
+<section class="workflow-section">
+  <h2 class="workflow-title">
+    <span class="workflow-dot workflow-dot-todo"></span>
+    Open Todos
+    <span class="workflow-count">{{len .Todos}}</span>
+  </h2>
+
+  {{if not .Todos}}
+  <div class="empty-card">
+    <strong>No open todos.</strong>
+    Pick <em>Todo</em> in the capture dialog to snapshot a task and come back to it later.
+  </div>
+  {{else}}
+  <div class="capture-grid">
+    {{range .Todos}}
+    <a class="capture-card capture-card-todo" href="/notebooks/{{.ID}}">
+      {{if .LastCaptureID}}
+      <img class="card-thumb" src="/archive/images/{{deref .LastCaptureID}}" alt="" loading="lazy">
+      {{else}}
+      <div class="card-thumb-placeholder">⌥</div>
+      {{end}}
+      <div class="card-body">
+        <div class="card-app">{{if .Title}}{{deref .Title}}{{else}}Untitled{{end}}</div>
+        {{if .LastResponse}}<div class="card-preview">{{truncate .LastResponse 80}}</div>{{end}}
+        <div class="card-meta">
+          <span class="badge badge-todo">Todo</span>
+          {{if .SkillLastUsed}}<span class="badge badge-skill">{{deref .SkillLastUsed}}</span>{{end}}
+          <span class="card-time">{{timeAgo .CreatedAt}}</span>
+        </div>
+      </div>
+    </a>
+    {{end}}
+  </div>
+  {{end}}
+</section>
+
+<!-- Recent active -->
+<section class="workflow-section">
+  <h2 class="workflow-title">
+    <span class="workflow-dot workflow-dot-recent"></span>
+    Recent activity
+    <span class="workflow-subtle">last {{.RecentDays}} days</span>
+  </h2>
+
+  {{if not .Recent}}
+  <div class="empty-card">
+    <strong>No recent activity.</strong>
+    New captures and follow-up turns will surface here.
+  </div>
+  {{else}}
+  <div class="capture-grid">
+    {{range .Recent}}
+    <a class="capture-card" href="/notebooks/{{.ID}}">
+      {{if .LastCaptureID}}
+      <img class="card-thumb" src="/archive/images/{{deref .LastCaptureID}}" alt="" loading="lazy">
+      {{else}}
+      <div class="card-thumb-placeholder">⌥</div>
+      {{end}}
+      <div class="card-body">
+        <div class="card-app">{{if .Title}}{{deref .Title}}{{else}}Untitled{{end}}</div>
+        {{if .LastResponse}}<div class="card-preview">{{truncate .LastResponse 80}}</div>{{end}}
+        <div class="card-meta">
+          {{if .IsTodo}}{{if .TodoDone}}<span class="badge">Done</span>{{end}}{{end}}
+          {{if .SkillLastUsed}}<span class="badge badge-skill">{{deref .SkillLastUsed}}</span>{{end}}
+          <span class="card-time">{{timeAgo .UpdatedAt}}</span>
+        </div>
+      </div>
+    </a>
+    {{end}}
+  </div>
+  {{end}}
+</section>
+
+{{end}}

@@ -616,3 +616,28 @@ nav {
 
 /* ── Empty row ── */
 .table-empty td { text-align: center; color: var(--secondary); padding: 32px !important; }
+
+/* ── Workflows landing page ── */
+.workflow-section { margin-bottom: 32px; }
+.workflow-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600;
+  margin: 0 0 12px 0;
+}
+.workflow-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.workflow-dot-todo   { background: #f59e0b; }
+.workflow-dot-recent { background: #6e6e73; }
+.workflow-count {
+  background: var(--accent); color: #fff;
+  border-radius: 999px; padding: 1px 8px;
+  font-size: 12px; font-weight: 600;
+  margin-left: 4px;
+}
+.workflow-subtle { font-weight: 400; color: var(--secondary); font-size: 12px; margin-left: 4px; }
+.empty-card {
+  background: var(--surface); border: 1px dashed var(--border); border-radius: 12px;
+  padding: 24px; color: var(--secondary); font-size: 14px; line-height: 1.5;
+}
+.empty-card strong { color: var(--text); display: block; margin-bottom: 4px; font-weight: 600; }
+.empty-card em { font-style: normal; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+.capture-card-todo { border-left: 3px solid #f59e0b; }

@@ -14,6 +14,7 @@ func NewRouter(database *db.DB, dataDir string) http.Handler {
 
 	mux.Handle("/archive", http.HandlerFunc(h.serveArchive))
 	mux.Handle("/archive/", http.HandlerFunc(h.serveArchive))
+	mux.Handle("/workflows", http.HandlerFunc(h.serveWorkflows))
 	mux.Handle("/admin", http.HandlerFunc(h.serveAdmin))
 	mux.Handle("/admin/", http.HandlerFunc(h.serveAdmin))
 	mux.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(h.serveStatic)))
