@@ -15,10 +15,9 @@ struct CaptureDialogView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            titleBar
+            Divider()
             annotationToolbar
-            if vm.capture.appName != nil || vm.capture.windowTitle != nil {
-                appNameBar
-            }
             thumbnailRow
             Divider()
             ocrSection
@@ -28,6 +27,36 @@ struct CaptureDialogView: View {
         }
         .frame(width: kDialogWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
+    }
+
+    // MARK: - Title bar
+
+    private var titleBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "scope")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+            Text("Clicktion").fontWeight(.semibold)
+            if let suffix = windowSuffix {
+                Text("—").foregroundStyle(.tertiary)
+                Text(suffix).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+        }
+        .font(.callout)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    /// "App — Window" if both present, otherwise whichever one exists.
+    private var windowSuffix: String? {
+        switch (vm.capture.appName, vm.capture.windowTitle) {
+        case let (app?, title?): return "\(app) — \(title)"
+        case let (app?, nil):    return app
+        case let (nil, title?):  return title
+        default:                 return nil
+        }
     }
 
     // MARK: - Annotation toolbar (no copy button here)
@@ -60,23 +89,6 @@ struct CaptureDialogView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    // MARK: - App name bar
-
-    private var appNameBar: some View {
-        HStack(spacing: 4) {
-            if let app = vm.capture.appName { Text(app).fontWeight(.medium) }
-            if let title = vm.capture.windowTitle {
-                Text("—").foregroundStyle(.secondary)
-                Text(title).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-            }
-        }
-        .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
-        .background(Color(nsColor: .windowBackgroundColor).opacity(0.85))
     }
 
     // MARK: - Thumbnail + copy sidebar
