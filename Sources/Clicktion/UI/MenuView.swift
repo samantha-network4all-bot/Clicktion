@@ -35,22 +35,12 @@ struct MenuView: View {
     }
 
     private var modelRow: some View {
-        Button {
-            NSWorkspace.shared.open(AppState.shared.serviceURL.appendingPathComponent("/admin/models"))
-        } label: {
-            HStack {
-                ModelStatusIndicator()
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .contentShape(Rectangle())
+        HStack {
+            ModelStatusIndicator()
+            Spacer()
         }
-        .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
-        .help("Manage models")
     }
 
     private var captureButton: some View {
