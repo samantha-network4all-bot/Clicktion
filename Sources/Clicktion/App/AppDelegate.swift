@@ -30,8 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
-        button.image = StatusBarIcon.make()
-        button.image?.accessibilityDescription = "Clicktion"
+        // "scope" is the SF Symbol that matches the crosshair-in-circle web logo.
+        button.image = NSImage(systemSymbolName: "scope",
+                               accessibilityDescription: "Clicktion")
         button.action = #selector(togglePopover)
         button.target = self
     }
@@ -68,9 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor func updateTodoBadge(count: Int) {
         guard let button = statusItem.button else { return }
-        button.image = StatusBarIcon.make(filled: count > 0)
-        button.image?.accessibilityDescription = count > 0
-            ? "Clicktion — \(count) todo(s)"
-            : "Clicktion"
+        let label = count > 0 ? "Clicktion — \(count) todo(s)" : "Clicktion"
+        button.image = NSImage(systemSymbolName: "scope", accessibilityDescription: label)
     }
 }
