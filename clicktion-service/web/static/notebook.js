@@ -1,0 +1,125 @@
+// Notebook page interactivity — follow-up input + SSE streaming.
+//
+// Wiring:
+//   1. User types a message → submits form
+//   2. POST /notebooks/{id}/follow-up with the message
+//      Response: { job_id }
+//   3. Append a markdown cell with the user's message (mirrors what the
+//      server just persisted)
+//   4. Open EventSource on /notebooks/{id}/stream?job=<job_id>
+//   5. Append tokens into #streaming-cell as they arrive
+//   6. On [DONE], move the streamed text into a permanent cell and reset
+//      the streaming holder so the next turn can reuse it.
+
+(() => {
+  const form = document.getElementById('follow-up-form');
+  if (!form) return;
+
+  const notebookID = form.dataset.notebook;
+  const cellsContainer = document.querySelector('.cells');
+  const streamingCell = document.getElementById('streaming-cell');
+  const streamingBody = document.getElementById('streaming-body');
+
+  // Convert a multi-line plain-text message into safe HTML.
+  const escapeHtml = (s) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const appendUserCell = (text) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell cell-markdown';
+    cell.innerHTML = `
+      <div class="cell-label">You</div>
+      <div class="cell-body">${escapeHtml(text)}</div>
+    `;
+    // Insert before the streaming cell so order matches what reload will show.
+    cellsContainer.insertBefore(cell, streamingCell);
+  };
+
+  const promoteStreamingCell = (finalText) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell cell-response';
+    cell.innerHTML = `
+      <div class="cell-label">Response</div>
+      <div class="cell-body"></div>
+    `;
+    cell.querySelector('.cell-body').textContent = finalText;
+    cellsContainer.insertBefore(cell, streamingCell);
+    streamingBody.textContent = '';
+    streamingCell.style.display = 'none';
+  };
+
+  let inflight = null;
+
+  const startStream = (jobID) => {
+    streamingBody.textContent = '';
+    streamingCell.style.display = '';
+    streamingCell.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    const es = new EventSource(`/notebooks/${notebookID}/stream?job=${encodeURIComponent(jobID)}`);
+    let accumulated = '';
+    inflight = es;
+
+    es.onmessage = (ev) => {
+      const data = ev.data;
+      if (data === '[DONE]') {
+        es.close();
+        inflight = null;
+        const text = accumulated.trim();
+        if (text.length > 0) promoteStreamingCell(text);
+        else streamingCell.style.display = 'none';
+        return;
+      }
+      // Thinking tokens are prefixed with \x01 by the Go service. Skip them
+      // here — P2.5 can add a separate "reasoning" pane.
+      if (data.charCodeAt(0) === 0x01) return;
+      accumulated += data;
+      streamingBody.textContent = accumulated;
+      streamingCell.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
+
+    es.onerror = () => {
+      es.close();
+      inflight = null;
+      streamingBody.textContent += '\n\n[stream error]';
+    };
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (inflight) return; // ignore submits while a turn is in progress
+
+    const ta = form.querySelector('textarea[name="message"]');
+    const text = (ta.value || '').trim();
+    if (!text) return;
+
+    appendUserCell(text);
+    ta.value = '';
+
+    try {
+      const resp = await fetch(`/notebooks/${notebookID}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const { job_id } = await resp.json();
+      startStream(job_id);
+    } catch (err) {
+      console.error(err);
+      const note = document.createElement('div');
+      note.className = 'empty-card';
+      note.textContent = `Could not send: ${err.message || err}`;
+      cellsContainer.insertBefore(note, streamingCell);
+    }
+  });
+
+  // ⌘↩ to send.
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+})();

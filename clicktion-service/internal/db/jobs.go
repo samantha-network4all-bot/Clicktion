@@ -1,6 +1,9 @@
 package db
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
 
 type Job struct {
 	ID              string
@@ -81,6 +84,19 @@ func (d *DB) GetJob(id string) (*Job, error) {
 	j.SendOCR = sendOCR != 0
 	j.ThinkingEnabled = thinkingEnabled != 0
 	return &j, nil
+}
+
+// LatestJobIDForCapture returns the most recent job id attached to a capture,
+// or "" if no job exists yet (e.g. todo notebooks).
+func (d *DB) LatestJobIDForCapture(captureID string) (string, error) {
+	var id string
+	err := d.sql.QueryRow(
+		`SELECT id FROM jobs WHERE capture_id = ? ORDER BY created_at DESC LIMIT 1`,
+		captureID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return id, err
 }
 
 func (d *DB) UpdateJobStatus(id, status string) error {

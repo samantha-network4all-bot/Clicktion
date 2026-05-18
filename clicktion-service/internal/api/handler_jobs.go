@@ -88,8 +88,13 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 // It polls the in-memory jobStream every 50ms, flushing tokens to the client.
 // If the job is already finished, it replays messages from the DB.
 func (h *handler) streamJob(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	h.writeJobStream(w, r, r.PathValue("id"))
+}
 
+// writeJobStream is the SSE writer shared by /api/jobs/{id}/stream (Mac
+// app via Bearer) and /notebooks/{id}/stream (browser, no auth). Both use
+// the same in-memory channel + DB-replay fallback.
+func (h *handler) writeJobStream(w http.ResponseWriter, r *http.Request, id string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, fmt.Errorf("streaming not supported"), http.StatusInternalServerError)

@@ -86,5 +86,28 @@
   {{end}}
 
   {{end}}
+
+  <!-- Live streaming cell — populated by JS while the LLM is generating -->
+  <div id="streaming-cell" class="cell cell-response" style="display:none">
+    <div class="cell-label">
+      Response
+      <span class="streaming-dot"></span>
+    </div>
+    <div class="cell-body" id="streaming-body"></div>
+  </div>
 </div>
+
+{{if .HasResponseCell}}
+<!-- Follow-up input -->
+<form id="follow-up-form" class="follow-up" data-notebook="{{.Notebook.ID}}">
+  <textarea name="message" placeholder="Ask a follow-up… (⌘↩ to send)" rows="2" autofocus></textarea>
+  <button type="submit" class="btn btn-primary">Send</button>
+</form>
+<script src="/static/notebook.js"></script>
+{{else if not .Notebook.TodoDone}}
+<div class="empty-card" style="margin-top: 16px;">
+  <strong>No skill run yet.</strong>
+  Open the Mac app and pick a skill from the capture dialog to start a conversation. (Skill picker in the browser ships in P2.2.)
+</div>
+{{end}}
 {{end}}
