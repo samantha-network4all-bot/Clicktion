@@ -55,6 +55,22 @@ func (h *handler) serveNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// POST /notebooks/{id}/regenerate — re-run the most recent job, appending
+	// a new response cell. Same skill / capture context as before.
+	if strings.HasSuffix(path, "/regenerate") && r.Method == http.MethodPost {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/regenerate")
+		h.notebookRegenerate(w, r, id)
+		return
+	}
+
+	// POST /notebooks/{id}/edit-ocr — update the OCR text of a capture cell.
+	// Body: { capture_id, ocr_text }. Used by P2.4 inline editor.
+	if strings.HasSuffix(path, "/edit-ocr") && r.Method == http.MethodPost {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/edit-ocr")
+		h.notebookEditOCR(w, r, id)
+		return
+	}
+
 	// GET /notebooks/{id}/stream?job=X — browser-side SSE (no Bearer auth).
 	if strings.HasSuffix(path, "/stream") && r.Method == http.MethodGet {
 		jobID := r.URL.Query().Get("job")
@@ -216,6 +232,86 @@ func (h *handler) notebookRunSkill(w http.ResponseWriter, r *http.Request, noteb
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"job_id":"%s"}`, job.ID)
+}
+
+// notebookEditOCR updates a capture's OCR text after the user manually
+// corrects what Vision recognised. The browser typically follows up with a
+// Regenerate call so the LLM can re-run against the fixed text.
+func (h *handler) notebookEditOCR(w http.ResponseWriter, r *http.Request, notebookID string) {
+	var body struct {
+		CaptureID string `json:"capture_id"`
+		OCRText   string `json:"ocr_text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.CaptureID == "" {
+		http.Error(w, "capture_id required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify the capture really belongs to this notebook to prevent cross-
+	// notebook edits via a forged capture_id.
+	cells, err := h.db.ListNotebookCells(notebookID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	allowed := false
+	for _, c := range cells {
+		if c.Kind == db.CellCapture && c.CaptureID != nil && *c.CaptureID == body.CaptureID {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		http.Error(w, "capture not in this notebook", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.db.UpdateCapture(body.CaptureID, map[string]any{"ocr_text": body.OCRText}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// notebookRegenerate re-runs the latest job on a notebook without adding a
+// user message. Used by the "Regenerate" button on the most recent response
+// cell — produces a new response variant with the same skill + context.
+func (h *handler) notebookRegenerate(w http.ResponseWriter, r *http.Request, notebookID string) {
+	cells, err := h.db.ListNotebookCells(notebookID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var captureID string
+	for _, c := range cells {
+		if c.Kind == db.CellCapture && c.CaptureID != nil {
+			captureID = *c.CaptureID
+			break
+		}
+	}
+	if captureID == "" {
+		http.Error(w, "notebook has no capture cell", http.StatusBadRequest)
+		return
+	}
+	jobID, err := h.db.LatestJobIDForCapture(captureID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if jobID == "" {
+		http.Error(w, "no job to regenerate — pick a skill first", http.StatusBadRequest)
+		return
+	}
+
+	h.db.UpdateJobStatus(jobID, "running")
+	h.runJob(jobID)
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"job_id":"%s"}`, jobID)
 }
 
 // notebookFollowUp accepts a follow-up message from the browser, persists it

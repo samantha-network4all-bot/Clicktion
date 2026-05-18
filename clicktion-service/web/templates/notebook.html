@@ -45,20 +45,23 @@
   {{range .Cells}}
 
   {{if eq (printf "%s" .Kind) "capture"}}
-    <div class="cell cell-capture">
-      <div class="cell-label">Capture</div>
+    <div class="cell cell-capture" data-capture-id="{{if .Capture}}{{.Capture.ID}}{{end}}">
+      <div class="cell-label">
+        Capture
+        {{if .Capture}}
+        <button type="button" class="cell-action ocr-edit-btn" data-capture="{{.Capture.ID}}" title="Edit OCR text">✎ Edit OCR</button>
+        {{end}}
+      </div>
       {{if .Capture}}
         {{if .Capture.ImagePath}}
         <div class="cell-thumb">
           <img src="/archive/images/{{.Capture.ID}}" alt="Capture">
         </div>
         {{end}}
-        {{if .Capture.OCRText}}
-        <details class="cell-ocr">
+        <details class="cell-ocr" {{if not .Capture.OCRText}}open{{end}}>
           <summary>Extracted text ({{len .Capture.OCRText}} chars)</summary>
-          <pre class="ocr-body">{{.Capture.OCRText}}</pre>
+          <pre class="ocr-body" data-ocr-for="{{.Capture.ID}}">{{.Capture.OCRText}}</pre>
         </details>
-        {{end}}
         <div class="cell-meta">
           {{if .Capture.AppName}}<span>{{deref .Capture.AppName}}</span>{{end}}
           {{if .Capture.WindowTitle}}<span style="color:#aaa">·</span><span>{{deref .Capture.WindowTitle}}</span>{{end}}
@@ -70,7 +73,7 @@
     </div>
 
   {{else if eq (printf "%s" .Kind) "response"}}
-    <div class="cell cell-response">
+    <div class="cell cell-response" data-cell-id="{{.ID}}">
       <div class="cell-label">
         Response
         {{if .SkillName}}<span class="badge badge-skill">{{deref .SkillName}}</span>{{end}}
@@ -101,6 +104,7 @@
 <!-- Follow-up input -->
 <form id="follow-up-form" class="follow-up" data-notebook="{{.Notebook.ID}}">
   <textarea name="message" placeholder="Ask a follow-up… (⌘↩ to send)" rows="2" autofocus></textarea>
+  <button type="button" id="regen-btn" class="btn btn-ghost" title="Regenerate the most recent response with the same skill">↻ Regenerate</button>
   <button type="submit" class="btn btn-primary">Send</button>
 </form>
 {{else if and (not .Notebook.TodoDone) .Skills}}

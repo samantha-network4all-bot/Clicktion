@@ -554,6 +554,9 @@ nav {
 .btn-primary:hover { background: var(--accent-h); }
 .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
 .btn-secondary:hover { background: var(--bg); }
+.btn-ghost { background: transparent; color: var(--secondary); border-color: var(--border); padding: 8px 12px; font-size: 13px; }
+.btn-ghost:hover:not(:disabled) { background: var(--bg); color: var(--text); }
+.btn-ghost:disabled { opacity: 0.4; cursor: default; }
 
 /* ── Flash messages ── */
 .flash { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
@@ -739,6 +742,34 @@ nav {
 }
 .skill-chip:hover:not(:disabled) { border-color: var(--accent); }
 .skill-chip:disabled { opacity: 0.4; cursor: default; }
+.cell-action {
+  margin-left: auto;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px;
+  font-size: 11px; font-weight: 500; color: var(--secondary);
+  cursor: pointer;
+}
+.cell-action:hover { border-color: var(--accent); color: var(--accent); }
+
+.ocr-edit-area {
+  width: 100%; box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; line-height: 1.5;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  resize: vertical; min-height: 100px; max-height: 400px;
+}
+.ocr-edit-area:focus { outline: none; border-color: var(--accent); }
+.ocr-edit-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 8px;
+}
+.ocr-edit-hint {
+  font-size: 11px; color: var(--secondary);
+  margin-left: 4px;
+}
+
 .skill-chip-active {
   background: var(--accent) !important;
   color: #fff !important;

@@ -121,6 +121,78 @@
 
   if (!form) return; // page is in skill-picker mode only
 
+  // OCR edit — inline textarea swap on capture cells. Save persists via
+  // POST /notebooks/{id}/edit-ocr and reloads the page so the new content
+  // is reflected everywhere. Re-running against the fixed OCR is one extra
+  // click on Regenerate.
+  document.querySelectorAll('.ocr-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const captureID = btn.dataset.capture;
+      const pre = document.querySelector(`.ocr-body[data-ocr-for="${captureID}"]`);
+      if (!pre || pre.dataset.editing === '1') return;
+      pre.dataset.editing = '1';
+
+      const ta = document.createElement('textarea');
+      ta.className = 'ocr-edit-area';
+      ta.value = pre.textContent;
+      ta.rows = Math.min(20, Math.max(4, pre.textContent.split('\n').length));
+      const bar = document.createElement('div');
+      bar.className = 'ocr-edit-bar';
+      bar.innerHTML = `
+        <button type="button" class="btn btn-primary ocr-save">Save</button>
+        <button type="button" class="btn btn-ghost ocr-cancel">Cancel</button>
+        <span class="ocr-edit-hint">Click Regenerate after saving to re-run the LLM against the new text.</span>
+      `;
+      pre.style.display = 'none';
+      pre.parentNode.insertBefore(ta, pre.nextSibling);
+      pre.parentNode.insertBefore(bar, ta.nextSibling);
+      ta.focus();
+
+      const close = () => {
+        ta.remove();
+        bar.remove();
+        pre.style.display = '';
+        delete pre.dataset.editing;
+      };
+
+      bar.querySelector('.ocr-cancel').addEventListener('click', close);
+      bar.querySelector('.ocr-save').addEventListener('click', async () => {
+        try {
+          const resp = await fetch(`/notebooks/${notebookID}/edit-ocr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ capture_id: captureID, ocr_text: ta.value }),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+          // Reload so all the places that show OCR text (header, cell, etc.)
+          // pick up the change.
+          location.reload();
+        } catch (err) {
+          alert(`Could not save OCR: ${err.message || err}`);
+        }
+      });
+    });
+  });
+
+  // Regenerate button — re-runs the most recent job without adding a user
+  // message. Produces a new response variant appended below the existing one.
+  const regenBtn = document.getElementById('regen-btn');
+  if (regenBtn) {
+    regenBtn.addEventListener('click', async () => {
+      if (inflight) return;
+      regenBtn.disabled = true;
+      try {
+        const resp = await fetch(`/notebooks/${notebookID}/regenerate`, { method: 'POST' });
+        if (!resp.ok) throw new Error(await resp.text());
+        const { job_id } = await resp.json();
+        startStream(job_id, () => { regenBtn.disabled = false; });
+      } catch (err) {
+        regenBtn.disabled = false;
+        alert(`Could not regenerate: ${err.message || err}`);
+      }
+    });
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (inflight) return; // ignore submits while a turn is in progress

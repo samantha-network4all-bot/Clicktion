@@ -64,7 +64,13 @@ func (d *DB) ListCaptures(limit, offset int) ([]Capture, error) {
 
 func (d *DB) UpdateCapture(id string, fields map[string]any) error {
 	// Only allow safe fields
-	allowed := map[string]bool{"is_todo": true, "todo_note": true, "todo_done": true, "skill_used": true}
+	allowed := map[string]bool{
+		"is_todo":    true,
+		"todo_note":  true,
+		"todo_done":  true,
+		"skill_used": true,
+		"ocr_text":   true,
+	}
 	for k := range fields {
 		if !allowed[k] {
 			delete(fields, k)
