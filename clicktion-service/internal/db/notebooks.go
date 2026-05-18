@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -99,6 +101,149 @@ func (d *DB) MarkNotebookDone(id string) error {
 		`UPDATE notebooks SET todo_done = 1, updated_at = CURRENT_TIMESTAMP
 		 WHERE id = ? AND is_todo = 1`, id)
 	return err
+}
+
+// GetNotebook fetches a single notebook by id.
+func (d *DB) GetNotebook(id string) (*Notebook, error) {
+	var n Notebook
+	var isTodo, todoDone int
+	err := d.sql.QueryRow(`
+		SELECT id, title, is_todo, todo_done, created_at, updated_at
+		FROM notebooks WHERE id = ?`, id).
+		Scan(&n.ID, &n.Title, &isTodo, &todoDone, &n.CreatedAt, &n.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	n.IsTodo = isTodo != 0
+	n.TodoDone = todoDone != 0
+	return &n, nil
+}
+
+// ListNotebookCells returns cells in position order. capture cells get their
+// linked capture preloaded into the returned struct (callers fetch the
+// associated Capture row separately via CaptureID when they need image/OCR).
+func (d *DB) ListNotebookCells(notebookID string) ([]NotebookCell, error) {
+	rows, err := d.sql.Query(`
+		SELECT id, notebook_id, position, kind, capture_id, content, thinking,
+		       skill_name, model_used, created_at
+		FROM notebook_cells
+		WHERE notebook_id = ?
+		ORDER BY position`, notebookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []NotebookCell
+	for rows.Next() {
+		var c NotebookCell
+		var kindStr string
+		if err := rows.Scan(&c.ID, &c.NotebookID, &c.Position, &kindStr,
+			&c.CaptureID, &c.Content, &c.Thinking, &c.SkillName,
+			&c.ModelUsed, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		c.Kind = CellKind(kindStr)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// NotebookSummary is one row in a notebook list view (workflows / archive).
+type NotebookSummary struct {
+	Notebook
+	CellCount      int
+	LastCaptureID  *string // capture_id of the most recent capture cell, for the thumbnail
+	LastResponse   string  // first 200 chars of the latest response cell, for preview
+	SkillLastUsed  *string
+}
+
+// NotebookFilter drives ListNotebooks.
+type NotebookFilter struct {
+	OpenTodosOnly  bool      // is_todo=1 AND todo_done=0
+	RecentDays     int       // updated_at >= now() - days; 0 = no filter
+	Page           int
+	Limit          int
+	OrderBy        string    // "" (default = updated DESC), "created", "todo_oldest"
+}
+
+// ListNotebooks returns a paginated list of summaries matching the filter.
+func (d *DB) ListNotebooks(f NotebookFilter) ([]NotebookSummary, int, error) {
+	if f.Limit == 0 {
+		f.Limit = 48
+	}
+	if f.Page < 1 {
+		f.Page = 1
+	}
+
+	var clauses []string
+	var args []any
+	if f.OpenTodosOnly {
+		clauses = append(clauses, "n.is_todo = 1 AND n.todo_done = 0")
+	}
+	if f.RecentDays > 0 {
+		clauses = append(clauses, "n.updated_at >= datetime('now', ?)")
+		args = append(args, fmt.Sprintf("-%d days", f.RecentDays))
+	}
+	where := ""
+	if len(clauses) > 0 {
+		where = " WHERE " + strings.Join(clauses, " AND ")
+	}
+
+	var total int
+	if err := d.sql.QueryRow(
+		`SELECT COUNT(*) FROM notebooks n`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	orderClause := " ORDER BY n.updated_at DESC"
+	switch f.OrderBy {
+	case "created":
+		orderClause = " ORDER BY n.created_at DESC"
+	case "todo_oldest":
+		orderClause = " ORDER BY n.created_at ASC"
+	}
+
+	query := `
+		SELECT n.id, n.title, n.is_todo, n.todo_done, n.created_at, n.updated_at,
+		       (SELECT COUNT(*) FROM notebook_cells WHERE notebook_id = n.id) AS cell_count,
+		       (SELECT capture_id FROM notebook_cells
+		         WHERE notebook_id = n.id AND kind = 'capture' AND capture_id IS NOT NULL
+		         ORDER BY position DESC LIMIT 1) AS last_cap,
+		       (SELECT substr(content, 1, 200) FROM notebook_cells
+		         WHERE notebook_id = n.id AND kind = 'response'
+		         ORDER BY position DESC LIMIT 1) AS last_resp,
+		       (SELECT skill_name FROM notebook_cells
+		         WHERE notebook_id = n.id AND skill_name IS NOT NULL
+		         ORDER BY position DESC LIMIT 1) AS last_skill
+		FROM notebooks n` + where + orderClause + ` LIMIT ? OFFSET ?`
+	args = append(args, f.Limit, (f.Page-1)*f.Limit)
+
+	rows, err := d.sql.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []NotebookSummary
+	for rows.Next() {
+		var s NotebookSummary
+		var isTodo, todoDone int
+		var lastResp sql.NullString
+		if err := rows.Scan(&s.ID, &s.Title, &isTodo, &todoDone,
+			&s.CreatedAt, &s.UpdatedAt, &s.CellCount,
+			&s.LastCaptureID, &lastResp, &s.SkillLastUsed); err != nil {
+			return nil, 0, err
+		}
+		s.IsTodo = isTodo != 0
+		s.TodoDone = todoDone != 0
+		if lastResp.Valid {
+			s.LastResponse = lastResp.String
+		}
+		out = append(out, s)
+	}
+	return out, total, rows.Err()
 }
 
 // NotebookForCapture returns the notebook holding the given capture as its
