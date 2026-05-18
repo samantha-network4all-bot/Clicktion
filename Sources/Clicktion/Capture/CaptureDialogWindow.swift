@@ -23,8 +23,10 @@ final class CaptureDialogWindow {
         controller.sizingOptions = .preferredContentSize
 
         let win = NSWindow(contentViewController: controller)
-        win.styleMask = [.titled, .closable]
+        win.styleMask = [.titled, .closable, .fullSizeContentView]
         win.title = windowTitle(for: capture)
+        win.titleVisibility = .hidden
+        win.titlebarAppearsTransparent = true
         win.level = .floating
         win.center()
         win.makeKeyAndOrderFront(nil)

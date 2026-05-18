@@ -124,10 +124,25 @@ struct CaptureDialogView: View {
         vm.send { jobID, captureID, sk in onSend(jobID, captureID, sk) }
     }
 
-    // MARK: - Annotation toolbar
+    // MARK: - Unified title/annotation toolbar
+    //
+    // Lives in the title-bar zone (fullSizeContentView + titlebarAppearsTransparent).
+    // The 76pt left padding clears the traffic-light buttons that macOS draws on top.
 
     private var annotationToolbar: some View {
         HStack(spacing: 8) {
+            Spacer().frame(width: 64)   // reserve room for traffic lights
+            Image(systemName: "scope")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            Text(titleText)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            ToolbarButton(icon: "camera.viewfinder", label: "New capture",
+                          isActive: false) { triggerNewCapture() }
             ToolbarButton(icon: "rectangle.dashed", label: "Select region",
                           isActive: vm.activeTool == .rectangle) {
                 vm.activeTool = vm.activeTool == .rectangle ? .none : .rectangle
@@ -136,25 +151,28 @@ struct CaptureDialogView: View {
                           isActive: vm.activeTool == .freedraw) {
                 vm.activeTool = vm.activeTool == .freedraw ? .none : .freedraw
             }
-
-            Spacer()
-
             if !vm.annotations.isEmpty || vm.croppedImage != nil {
-                Button { vm.undo() } label: {
-                    Label("Undo", systemImage: "arrow.uturn.backward").font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-            }
-
-            if vm.croppedImage != nil {
-                Text("Region selected").font(.caption).foregroundStyle(.orange)
+                ToolbarButton(icon: "arrow.uturn.backward", label: "Undo",
+                              isActive: false) { vm.undo() }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 0)
-        .padding(.bottom, 6)
+        .padding(.horizontal, 10)
+        .frame(height: 38)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var titleText: String {
+        switch (vm.capture.appName, vm.capture.windowTitle) {
+        case let (app?, title?): return "Clicktion — \(app) — \(title)"
+        case let (app?, nil):    return "Clicktion — \(app)"
+        case let (nil, title?):  return "Clicktion — \(title)"
+        default:                 return "Clicktion"
+        }
+    }
+
+    private func triggerNewCapture() {
+        guard !vm.isSending else { return }
+        Task { await CaptureManager.shared.startCapture() }
     }
 
     // MARK: - Thumbnail + copy sidebar
