@@ -190,6 +190,18 @@ func (h *handler) serveNotebook(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// notebookCount returns counts the Mac app uses for menu-bar badges.
+// Currently only open todos; could expand to e.g. recent counts later.
+func (h *handler) notebookCount(w http.ResponseWriter, r *http.Request) {
+	n, err := h.db.OpenTodoCount()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"open_todos":%d}`, n)
+}
+
 func (h *handler) markNotebookDone(w http.ResponseWriter, r *http.Request, id string) {
 	if err := h.db.MarkNotebookDone(id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

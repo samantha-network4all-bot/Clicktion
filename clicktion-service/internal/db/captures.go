@@ -98,8 +98,12 @@ func (d *DB) DeleteCapture(id string) error {
 	return err
 }
 
+// OpenTodoCount returns how many notebooks are open todos. Counts notebooks,
+// not captures, because MarkNotebookDone updates the notebook flag only —
+// captures.todo_done can drift out of sync after a notebook is completed.
 func (d *DB) OpenTodoCount() (int, error) {
 	var n int
-	err := d.sql.QueryRow(`SELECT COUNT(*) FROM captures WHERE is_todo = 1 AND todo_done = 0`).Scan(&n)
+	err := d.sql.QueryRow(
+		`SELECT COUNT(*) FROM notebooks WHERE is_todo = 1 AND todo_done = 0`).Scan(&n)
 	return n, err
 }

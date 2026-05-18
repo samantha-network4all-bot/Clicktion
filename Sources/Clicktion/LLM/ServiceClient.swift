@@ -59,6 +59,19 @@ final class ServiceClient {
         }
     }
 
+    // MARK: - Notebook counts
+
+    /// Returns the number of open todos (notebooks with is_todo=1 AND todo_done=0).
+    /// Drives the menu-bar badge.
+    func fetchOpenTodoCount() async throws -> Int {
+        struct Reply: Decodable {
+            let openTodos: Int
+            enum CodingKeys: String, CodingKey { case openTodos = "open_todos" }
+        }
+        let r: Reply = try await get("/api/notebooks/count")
+        return r.openTodos
+    }
+
     // MARK: - Storage
 
     /// Fire-and-forget prune. The server walks oldest captures first,

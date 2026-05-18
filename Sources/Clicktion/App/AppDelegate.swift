@@ -50,6 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // Refresh the badge + menu count so it reflects reality now,
+            // not the last 60-second poll.
+            Task { await serviceManager.refreshTodoCount() }
         }
     }
 

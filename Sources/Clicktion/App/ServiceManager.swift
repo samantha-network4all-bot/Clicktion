@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 final class ServiceManager {
@@ -60,6 +61,30 @@ final class ServiceManager {
         await bootstrapAPIKey()
         await syncModels()
         await MainActor.run { AppState.shared.isServiceReady = true }
+        await refreshTodoCount()
+        startTodoCountPoll()
+    }
+
+    /// Background poll so the menu-bar badge reflects the current open
+    /// todo count. 60-second cadence — todos are not real-time, and a
+    /// faster cadence wastes cycles on a single-user setup.
+    private func startTodoCountPoll() {
+        Task.detached {
+            while true {
+                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
+                await self.refreshTodoCount()
+            }
+        }
+    }
+
+    /// One-shot fetch — also called on menu open from AppDelegate so the
+    /// badge feels fresh when the user looks.
+    func refreshTodoCount() async {
+        guard let count = try? await ServiceClient.shared.fetchOpenTodoCount() else { return }
+        await MainActor.run {
+            AppState.shared.openTodoCount = count
+            (NSApp.delegate as? AppDelegate)?.updateTodoBadge(count: count)
+        }
     }
 
     // Poll /health until the service responds (up to 15 s)

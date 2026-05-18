@@ -58,6 +58,9 @@ func apiRoutes(h *handler) http.Handler {
 	mux.HandleFunc("POST /auth/keys", h.createAPIKey)
 	mux.HandleFunc("DELETE /auth/keys/{id}", h.deleteAPIKey)
 
+	// Notebooks
+	mux.HandleFunc("GET /notebooks/count", h.notebookCount)
+
 	// Storage
 	mux.HandleFunc("POST /storage/prune", h.pruneStorage)
 
