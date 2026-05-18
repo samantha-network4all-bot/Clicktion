@@ -15,8 +15,6 @@ struct CaptureDialogView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            titleBar
-            Divider()
             annotationToolbar
             thumbnailRow
             Divider()
@@ -27,36 +25,6 @@ struct CaptureDialogView: View {
         }
         .frame(width: kDialogWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
-    }
-
-    // MARK: - Title bar
-
-    private var titleBar: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "scope")
-                .foregroundStyle(.secondary)
-                .font(.callout)
-            Text("Clicktion").fontWeight(.semibold)
-            if let suffix = windowSuffix {
-                Text("—").foregroundStyle(.tertiary)
-                Text(suffix).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-            }
-            Spacer()
-        }
-        .font(.callout)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    /// "App — Window" if both present, otherwise whichever one exists.
-    private var windowSuffix: String? {
-        switch (vm.capture.appName, vm.capture.windowTitle) {
-        case let (app?, title?): return "\(app) — \(title)"
-        case let (app?, nil):    return app
-        case let (nil, title?):  return title
-        default:                 return nil
-        }
     }
 
     // MARK: - Annotation toolbar (no copy button here)

@@ -26,15 +26,23 @@ final class CaptureDialogWindow {
         controller.sizingOptions = .preferredContentSize
 
         let win = NSWindow(contentViewController: controller)
-        win.styleMask = [.titled, .closable, .fullSizeContentView]
-        win.titlebarAppearsTransparent = true
-        win.titleVisibility = .hidden
-        win.isMovableByWindowBackground = true
+        win.styleMask = [.titled, .closable]
+        win.title = windowTitle(for: capture)
         win.level = .floating
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
         window = win
+    }
+
+    /// "Clicktion — App — Window" if available, falls back gracefully.
+    private func windowTitle(for capture: CaptureResult) -> String {
+        switch (capture.appName, capture.windowTitle) {
+        case let (app?, title?): return "Clicktion — \(app) — \(title)"
+        case let (app?, nil):    return "Clicktion — \(app)"
+        case let (nil, title?):  return "Clicktion — \(title)"
+        default:                 return "Clicktion"
+        }
     }
 }
