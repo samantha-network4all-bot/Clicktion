@@ -108,6 +108,13 @@
     </div>
     <div class="cell-body" id="streaming-body"></div>
   </div>
+
+  <!-- Add-capture: upload another screenshot to extend this notebook -->
+  <div class="add-capture-row">
+    <input type="file" id="add-capture-file" accept="image/png,image/jpeg,image/webp" hidden>
+    <button type="button" id="add-capture-btn" class="btn btn-ghost">+ Add capture</button>
+    <span id="add-capture-status" class="add-capture-status"></span>
+  </div>
 </div>
 
 {{if .HasResponseCell}}

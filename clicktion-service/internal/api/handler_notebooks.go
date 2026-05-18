@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,9 @@ import (
 	"github.com/clicktion/service/internal/db"
 	"github.com/clicktion/service/internal/skills"
 )
+
+// readAll is io.ReadAll, aliased so the handler reads more naturally.
+var readAll = io.ReadAll
 
 // MARK: - Notebook detail (read-only in P1)
 
@@ -68,6 +72,14 @@ func (h *handler) serveNotebook(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(path, "/edit-ocr") && r.Method == http.MethodPost {
 		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/edit-ocr")
 		h.notebookEditOCR(w, r, id)
+		return
+	}
+
+	// POST /notebooks/{id}/add-capture — multipart image upload, appended as
+	// a new capture cell to an existing notebook (P3.2).
+	if strings.HasSuffix(path, "/add-capture") && r.Method == http.MethodPost {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/add-capture")
+		h.notebookAddCapture(w, r, id)
 		return
 	}
 
@@ -253,6 +265,79 @@ func (h *handler) notebookRunSkill(w http.ResponseWriter, r *http.Request, noteb
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"job_id":"%s"}`, job.ID)
+}
+
+// notebookAddCapture attaches a second / nth capture to an existing notebook
+// via a browser file upload (multipart). The new capture is saved to disk,
+// inserted into the captures table, and appended as a capture cell at the
+// end of the notebook. OCR is left empty — the user can paste it in via
+// the existing edit-OCR flow.
+func (h *handler) notebookAddCapture(w http.ResponseWriter, r *http.Request, notebookID string) {
+	// 10 MiB cap on uploads is plenty for screenshots.
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "missing image file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Reject anything that isn't an image by extension. PNG/JPG/WebP cover
+	// every realistic source (screenshots, phone photos, browser drag-and-drop).
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".webp":
+	default:
+		http.Error(w, "image must be png/jpg/webp", http.StatusBadRequest)
+		return
+	}
+
+	data, err := readAll(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	imagePath, err := h.saveImage(data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Inherit privacy from the existing notebook's primary capture, if any.
+	isPrivate := true
+	cells, _ := h.db.ListNotebookCells(notebookID)
+	for _, c := range cells {
+		if c.Kind == db.CellCapture && c.CaptureID != nil {
+			if cap, err := h.db.GetCapture(*c.CaptureID); err == nil && cap != nil {
+				isPrivate = cap.IsPrivate
+				break
+			}
+		}
+	}
+
+	capture, err := h.db.CreateCapture(db.Capture{
+		ImagePath: imagePath,
+		IsPrivate: isPrivate,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := h.db.AppendCell(db.NotebookCell{
+		NotebookID: notebookID,
+		Kind:       db.CellCapture,
+		CaptureID:  &capture.ID,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"capture_id":"%s"}`, capture.ID)
 }
 
 // notebookInsertCell adds a markdown cell at a chosen position. Body:

@@ -125,6 +125,36 @@
 
   if (!form) return; // page is in skill-picker mode only
 
+  // Add-capture button — multipart upload of an extra screenshot to this
+  // notebook (P3.2). After upload the page reloads so the new capture cell
+  // is rendered; the user can then run a skill on it via the existing
+  // regenerate / skill-picker plumbing.
+  const addCapBtn = document.getElementById('add-capture-btn');
+  const addCapInput = document.getElementById('add-capture-file');
+  const addCapStatus = document.getElementById('add-capture-status');
+  if (addCapBtn && addCapInput) {
+    addCapBtn.addEventListener('click', () => addCapInput.click());
+    addCapInput.addEventListener('change', async () => {
+      const file = addCapInput.files && addCapInput.files[0];
+      if (!file) return;
+      addCapBtn.disabled = true;
+      addCapStatus.textContent = 'Uploading…';
+      try {
+        const fd = new FormData();
+        fd.append('image', file);
+        const resp = await fetch(`/notebooks/${notebookID}/add-capture`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        location.reload();
+      } catch (err) {
+        addCapBtn.disabled = false;
+        addCapStatus.textContent = `Failed: ${err.message || err}`;
+      }
+    });
+  }
+
   // Markdown cell handlers — insert / edit / delete (P3.1)
   const reload = () => location.reload();
 

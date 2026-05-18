@@ -770,6 +770,16 @@ nav {
 }
 .md-insert-btn:hover { border-color: var(--accent); color: var(--accent); }
 
+.add-capture-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+.add-capture-status { font-size: 12px; color: var(--secondary); }
+
 .ocr-edit-area {
   width: 100%; box-sizing: border-box;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
