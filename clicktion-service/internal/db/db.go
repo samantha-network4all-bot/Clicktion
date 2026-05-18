@@ -27,7 +27,10 @@ func (d *DB) Migrate() error {
 	if _, err := d.sql.Exec(schema); err != nil {
 		return err
 	}
-	return d.runMigrations()
+	if err := d.runMigrations(); err != nil {
+		return err
+	}
+	return d.backfillNotebooks()
 }
 
 // runMigrations applies additive column changes that can't be expressed
@@ -117,9 +120,35 @@ CREATE TABLE IF NOT EXISTS llm_logs (
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS notebooks (
+    id          TEXT PRIMARY KEY,
+    title       TEXT,
+    is_todo     INTEGER NOT NULL DEFAULT 0,
+    todo_done   INTEGER NOT NULL DEFAULT 0,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notebook_cells (
+    id              TEXT PRIMARY KEY,
+    notebook_id     TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+    position        INTEGER NOT NULL,
+    kind            TEXT NOT NULL CHECK(kind IN ('capture','response','markdown')),
+    capture_id      TEXT REFERENCES captures(id) ON DELETE SET NULL,
+    content         TEXT NOT NULL DEFAULT '',
+    thinking        TEXT NOT NULL DEFAULT '',
+    skill_name      TEXT,
+    model_used      TEXT,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_captures_created   ON captures(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_captures_todo      ON captures(is_todo, todo_done);
 CREATE INDEX IF NOT EXISTS idx_chat_capture       ON chat_messages(capture_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_capture       ON jobs(capture_id);
 CREATE INDEX IF NOT EXISTS idx_llm_logs_job       ON llm_logs(job_id);
+CREATE INDEX IF NOT EXISTS idx_notebooks_todo     ON notebooks(is_todo, todo_done);
+CREATE INDEX IF NOT EXISTS idx_notebooks_updated  ON notebooks(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notebook_cells     ON notebook_cells(notebook_id, position);
+CREATE INDEX IF NOT EXISTS idx_notebook_cells_cap ON notebook_cells(capture_id);
 `
