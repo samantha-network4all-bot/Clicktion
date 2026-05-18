@@ -1,8 +1,0 @@
-{
-  "allow_cli": false,
-  "allow_file_write": false,
-  "allow_network": false,
-  "skip_confirmation": false,
-  "danger_level": "none",
-  "blocklist": []
-}

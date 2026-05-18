@@ -128,7 +128,7 @@ final class CaptureDialogViewModel: ObservableObject {
         }
     }
 
-    private func doSubmitCapture() async throws -> CaptureRecord {
+    private func doSubmitCapture(isTodo: Bool = false) async throws -> CaptureRecord {
         // Composite any freedraw/text annotations onto the image before encoding
         let imageToSend = annotations.isEmpty
             ? effectiveImage
@@ -144,12 +144,35 @@ final class CaptureDialogViewModel: ObservableObject {
             appName: capture.appName,
             windowTitle: capture.windowTitle,
             isPrivate: isPrivate,
+            isTodo: isTodo,
             availableSkills: availableSkills.map { SkillInfo(name: $0.name, triggers: $0.triggers) }
         )
         let record = try await ServiceClient.shared.submitCapture(payload)
         let cap = AppState.shared.maxDiskUsageMB
         Task.detached { await ServiceClient.shared.pruneStorage(maxMB: cap) }
         return record
+    }
+
+    /// "Save for later" path — no LLM run, dialog dismisses to the menu bar.
+    /// If the capture was already submitted (for skill suggestion) just PATCH
+    /// it; otherwise do a fresh submit with is_todo=true.
+    func saveAsTodo(completion: @escaping () -> Void) {
+        guard !isSending else { return }
+        isSending = true
+        Task {
+            defer { isSending = false }
+            do {
+                if let existing = captureRecord {
+                    try await ServiceClient.shared.markCaptureAsTodo(captureID: existing.id)
+                } else {
+                    captureRecord = try await doSubmitCapture(isTodo: true)
+                }
+                completion()
+            } catch {
+                errorMessage = error.localizedDescription
+                completion()
+            }
+        }
     }
 
     enum CaptureError: LocalizedError {

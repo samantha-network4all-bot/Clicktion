@@ -116,6 +116,23 @@ func (d *DB) MarkNotebookDone(id string) error {
 	return err
 }
 
+// SetNotebookTodoByCapture keeps the notebook's is_todo flag in sync with
+// the underlying capture's flag. Called when the user retroactively marks
+// a capture as "Todo" from the dialog or via PATCH /api/captures/{id}.
+func (d *DB) SetNotebookTodoByCapture(captureID string, isTodo bool) error {
+	flag := 0
+	if isTodo {
+		flag = 1
+	}
+	_, err := d.sql.Exec(`
+		UPDATE notebooks SET is_todo = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (
+			SELECT notebook_id FROM notebook_cells
+			WHERE capture_id = ? AND kind = 'capture'
+		)`, flag, captureID)
+	return err
+}
+
 // GetNotebook fetches a single notebook by id.
 func (d *DB) GetNotebook(id string) (*Notebook, error) {
 	var n Notebook

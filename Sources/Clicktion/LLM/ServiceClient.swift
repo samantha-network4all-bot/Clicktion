@@ -39,6 +39,26 @@ final class ServiceClient {
         try await post("/api/captures", body: payload)
     }
 
+    /// Flip an existing capture's is_todo flag (called when the user picks
+    /// "Todo" in the dialog after the capture has already been submitted for
+    /// skill suggestion). The server also syncs the linked notebook's flag.
+    func markCaptureAsTodo(captureID: String) async throws {
+        struct Body: Encodable {
+            let isTodo: Bool
+            enum CodingKeys: String, CodingKey { case isTodo = "is_todo" }
+        }
+        var request = URLRequest(url: baseURL.appendingPathComponent("/api/captures/\(captureID)"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONEncoder().encode(Body(isTodo: true))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+            let body = String(data: data, encoding: .utf8) ?? "unknown error"
+            throw ServiceError.httpError(http.statusCode, body)
+        }
+    }
+
     // MARK: - Storage
 
     /// Fire-and-forget prune. The server walks oldest captures first,
@@ -213,6 +233,7 @@ struct CapturePayload: Encodable {
     let appName: String?
     let windowTitle: String?
     let isPrivate: Bool
+    let isTodo: Bool
     let availableSkills: [SkillInfo]
     enum CodingKeys: String, CodingKey {
         case imageBase64 = "image_base64"
@@ -220,6 +241,7 @@ struct CapturePayload: Encodable {
         case appName = "app_name"
         case windowTitle = "window_title"
         case isPrivate = "is_private"
+        case isTodo = "is_todo"
         case availableSkills = "available_skills"
     }
 }

@@ -75,6 +75,8 @@ struct CaptureDialogView: View {
 
             ScrollView {
                 VStack(spacing: 2) {
+                    todoRow
+                    Divider().padding(.vertical, 4)
                     ForEach(vm.availableSkills) { skill in
                         skillRow(skill)
                     }
@@ -84,6 +86,44 @@ struct CaptureDialogView: View {
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .frame(width: kSkillsWidth)
+    }
+
+    /// "Save for later" pseudo-skill. Sits above the actual skills list,
+    /// separated by a divider. Clicking it stashes the capture as a todo
+    /// (no LLM run) and dismisses the dialog.
+    private var todoRow: some View {
+        Button { triggerTodo() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "checklist")
+                    .foregroundStyle(.orange)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Todo")
+                        .font(.callout.weight(.medium))
+                    Text("Save for later — no LLM run")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .disabled(vm.isSending)
+    }
+
+    private func triggerTodo() {
+        guard !vm.isSending else { return }
+        // Hide dialog immediately for snappy UX; the PATCH/POST runs in
+        // the background. No chat window opens — the user comes back via
+        // /workflows in the browser.
+        vm.saveAsTodo { /* no-op — dialog already hidden */ }
+        onSkillClicked()
     }
 
     private func skillRow(_ skill: Skill) -> some View {

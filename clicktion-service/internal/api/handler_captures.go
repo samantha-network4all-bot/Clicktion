@@ -170,6 +170,12 @@ func (h *handler) updateCapture(w http.ResponseWriter, r *http.Request) {
 		httpError(w, err, http.StatusInternalServerError)
 		return
 	}
+	// Keep the notebook's is_todo flag in sync when the field is patched.
+	if v, ok := fields["is_todo"]; ok {
+		if b, ok := v.(bool); ok {
+			h.db.SetNotebookTodoByCapture(id, b)
+		}
+	}
 	jsonOK(w, map[string]string{"status": "updated"})
 }
 
