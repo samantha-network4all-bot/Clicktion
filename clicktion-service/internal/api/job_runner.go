@@ -139,7 +139,7 @@ func (h *handler) streamWithModel(
 	isFallback bool,
 	opts llm.StreamOptions,
 ) (llm.StreamResult, error) {
-	messages := buildMessages(job, capture, history, job.SendImage)
+	messages := h.buildMessages(job, capture, history, job.SendImage)
 
 	var fullResponse string
 	var receivedAnyToken bool
@@ -185,7 +185,7 @@ func (h *handler) streamWithModel(
 	return result, nil
 }
 
-func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, sendImage bool) []llm.Message {
+func (h *handler) buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, sendImage bool) []llm.Message {
 	var messages []llm.Message
 
 	if job.MasterPrompt != "" {
@@ -196,6 +196,33 @@ func buildMessages(job *db.Job, capture *db.Capture, history []db.ChatMessage, s
 	}
 
 	text := buildCaptureContext(capture, job.SendOCR)
+
+	// P3.3 implicit auto-context — if this capture lives in a multi-capture
+	// notebook, append the OCR of the *other* capture cells so the LLM sees
+	// the wider context. Image data is only attached for the primary capture
+	// (vision models accept one image per turn).
+	if nb, err := h.db.NotebookForCapture(capture.ID); err == nil && nb != nil {
+		if cells, err := h.db.ListNotebookCells(nb.ID); err == nil {
+			for _, c := range cells {
+				if c.Kind != db.CellCapture || c.CaptureID == nil || *c.CaptureID == capture.ID {
+					continue
+				}
+				other, err := h.db.GetCapture(*c.CaptureID)
+				if err != nil || other == nil || other.OCRText == "" {
+					continue
+				}
+				text += "\n\n--- Additional capture in this notebook ---\n"
+				if other.AppName != nil {
+					text += "Application: " + *other.AppName + "\n"
+				}
+				if other.WindowTitle != nil {
+					text += "Window: " + *other.WindowTitle + "\n"
+				}
+				text += "Text visible on screen:\n" + other.OCRText
+			}
+		}
+	}
+
 	if sendImage && capture.ImagePath != "" {
 		imgData, err := os.ReadFile(capture.ImagePath)
 		if err == nil {
