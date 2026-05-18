@@ -108,16 +108,11 @@ struct CaptureDialogView: View {
     }
 
     private var ocrHeader: some View {
-        HStack(spacing: 4) {
+        HStack {
             Text("Text Captures:")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer()
-            CopyButton(help: "Copy text to clipboard",
-                       disabled: vm.ocrText.isEmpty || vm.isOCRRunning) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(vm.ocrText, forType: .string)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
@@ -126,40 +121,55 @@ struct CaptureDialogView: View {
     }
 
     private var ocrScroll: some View {
-        ScrollView {
-            Group {
-                if vm.isOCRRunning {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Reading text…").foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                } else if vm.ocrText.isEmpty {
-                    Text("No text detected")
-                        .foregroundStyle(.tertiary)
+        HStack(spacing: 0) {
+            ScrollView {
+                Group {
+                    if vm.isOCRRunning {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Reading text…").foregroundStyle(.secondary)
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                } else {
-                    let (preview, hiddenCount) = firstSentences(vm.ocrText, limit: kOCRPreviewSentences)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(preview)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
+                    } else if vm.ocrText.isEmpty {
+                        Text("No text detected")
+                            .foregroundStyle(.tertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        if hiddenCount > 0 {
-                            Text("+ \(hiddenCount) more sentence\(hiddenCount == 1 ? "" : "s") (full text is sent to the LLM)")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
+                            .padding(10)
+                    } else {
+                        let (preview, hiddenCount) = firstSentences(vm.ocrText, limit: kOCRPreviewSentences)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(preview)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if hiddenCount > 0 {
+                                Text("+ \(hiddenCount) more sentence\(hiddenCount == 1 ? "" : "s") (full text is sent to the LLM)")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                        .padding(10)
                     }
-                    .padding(10)
                 }
             }
+            .textSelection(.enabled)
+            .frame(width: kDialogWidth - kCopySidebar, height: kOCRHeight)
+            .background(Color(nsColor: .textBackgroundColor))
+
+            // Copy column — mirrors the thumbnail's copy sidebar layout.
+            VStack(spacing: 0) {
+                CopyButton(help: "Copy text to clipboard",
+                           disabled: vm.ocrText.isEmpty || vm.isOCRRunning) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(vm.ocrText, forType: .string)
+                }
+                .padding(.top, 6)
+                Spacer()
+            }
+            .frame(width: kCopySidebar, height: kOCRHeight)
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .textSelection(.enabled)
-        .frame(height: kOCRHeight)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 
     // MARK: - Bottom bar: skill picker + Cancel + Action
