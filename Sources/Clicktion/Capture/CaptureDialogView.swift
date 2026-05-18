@@ -15,6 +15,7 @@ struct CaptureDialogView: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
+                annotationToolbar
                 thumbnailRow
                 Divider()
                 ocrSection
@@ -123,10 +124,10 @@ struct CaptureDialogView: View {
         vm.send { jobID, captureID, sk in onSend(jobID, captureID, sk) }
     }
 
-    // MARK: - Annotation overlay (floats on the thumbnail's top-left)
+    // MARK: - Annotation toolbar
 
-    private var annotationOverlay: some View {
-        HStack(spacing: 4) {
+    private var annotationToolbar: some View {
+        HStack(spacing: 8) {
             ToolbarButton(icon: "rectangle.dashed", label: "Select region",
                           isActive: vm.activeTool == .rectangle) {
                 vm.activeTool = vm.activeTool == .rectangle ? .none : .rectangle
@@ -135,20 +136,25 @@ struct CaptureDialogView: View {
                           isActive: vm.activeTool == .freedraw) {
                 vm.activeTool = vm.activeTool == .freedraw ? .none : .freedraw
             }
+
+            Spacer()
+
             if !vm.annotations.isEmpty || vm.croppedImage != nil {
-                ToolbarButton(icon: "arrow.uturn.backward", label: "Undo",
-                              isActive: false) { vm.undo() }
+                Button { vm.undo() } label: {
+                    Label("Undo", systemImage: "arrow.uturn.backward").font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
             }
+
             if vm.croppedImage != nil {
-                Text("Region selected")
-                    .font(.caption).foregroundStyle(.orange)
-                    .padding(.leading, 4)
+                Text("Region selected").font(.caption).foregroundStyle(.orange)
             }
         }
-        .padding(6)
-        .background(.black.opacity(0.45))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .padding(8)
+        .padding(.horizontal, 12)
+        .padding(.top, 0)
+        .padding(.bottom, 6)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Thumbnail + copy sidebar
@@ -173,7 +179,6 @@ struct CaptureDialogView: View {
             .frame(width: kDialogWidth - kCopySidebar, height: kThumbnailHeight)
             .background(Color.black)
             .clipped()
-            .overlay(alignment: .topLeading) { annotationOverlay }
 
             // Copy-image button sidebar
             VStack(spacing: 0) {
@@ -319,12 +324,13 @@ private struct ToolbarButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.callout.weight(isActive ? .semibold : .regular))
-                .frame(width: 24, height: 24)
-                .background(isActive ? Color.accentColor.opacity(0.25) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .foregroundStyle(isActive ? Color.accentColor : .white.opacity(0.9))
+            Label(label, systemImage: icon)
+                .font(.caption.weight(isActive ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
         }
         .buttonStyle(.plain)
         .help(label)
