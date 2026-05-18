@@ -30,7 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "viewfinder", accessibilityDescription: "Clicktion")
+        button.image = StatusBarIcon.make()
+        button.image?.accessibilityDescription = "Clicktion"
         button.action = #selector(togglePopover)
         button.target = self
     }
@@ -67,10 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor func updateTodoBadge(count: Int) {
         guard let button = statusItem.button else { return }
-        if count > 0 {
-            button.image = NSImage(systemSymbolName: "viewfinder.circle.fill", accessibilityDescription: "Clicktion — \(count) todo(s)")
-        } else {
-            button.image = NSImage(systemSymbolName: "viewfinder", accessibilityDescription: "Clicktion")
-        }
+        button.image = StatusBarIcon.make(filled: count > 0)
+        button.image?.accessibilityDescription = count > 0
+            ? "Clicktion — \(count) todo(s)"
+            : "Clicktion"
     }
 }
