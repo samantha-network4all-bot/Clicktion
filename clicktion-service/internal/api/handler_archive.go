@@ -49,11 +49,14 @@ func (h *handler) serveArchive(w http.ResponseWriter, r *http.Request) {
 func (h *handler) archiveIndex(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := db.ArchiveFilter{
-		Query:  q.Get("q"),
-		Todo:   q.Get("filter") == "todo",
-		Public: q.Get("filter") == "public",
-		Skill:  q.Get("skill"),
-		Limit:  48,
+		Query:    q.Get("q"),
+		Todo:     q.Get("filter") == "todo",
+		Public:   q.Get("filter") == "public",
+		Skill:    q.Get("skill"),
+		DateFrom: q.Get("from"),
+		DateTo:   q.Get("to"),
+		OrderBy:  q.Get("order"),
+		Limit:    48,
 	}
 	if p, err := strconv.Atoi(q.Get("page")); err == nil && p > 0 {
 		filter.Page = p

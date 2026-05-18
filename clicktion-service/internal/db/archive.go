@@ -8,12 +8,15 @@ import (
 )
 
 type ArchiveFilter struct {
-	Query  string
-	Todo   bool
-	Public bool // true = show only public; false = show all
-	Skill  string
-	Page   int
-	Limit  int
+	Query    string
+	Todo     bool
+	Public   bool   // true = show only public; false = show all
+	Skill    string
+	DateFrom string // ISO date YYYY-MM-DD inclusive lower bound
+	DateTo   string // ISO date YYYY-MM-DD inclusive upper bound
+	OrderBy  string // "" | "created_desc" | "updated_desc" | "messages_desc"
+	Page     int
+	Limit    int
 }
 
 type ArchiveCapture struct {
@@ -39,6 +42,15 @@ func (d *DB) SearchCaptures(f ArchiveFilter) ([]ArchiveCapture, int, error) {
 		return nil, 0, err
 	}
 
+	orderClause := " ORDER BY c.created_at DESC"
+	switch f.OrderBy {
+	case "updated_desc":
+		// "Last activity" = latest chat message timestamp, falling back to capture creation.
+		orderClause = " ORDER BY COALESCE(MAX(m.created_at), c.created_at) DESC"
+	case "messages_desc":
+		orderClause = " ORDER BY COUNT(m.id) DESC, c.created_at DESC"
+	}
+
 	query := `
 		SELECT c.id, c.image_path, c.ocr_text, c.app_name, c.window_title,
 		       c.is_private, c.skill_used, c.is_todo, c.todo_note, c.todo_done, c.created_at,
@@ -48,8 +60,7 @@ func (d *DB) SearchCaptures(f ArchiveFilter) ([]ArchiveCapture, int, error) {
 		                 ORDER BY created_at DESC LIMIT 1), '') AS last_message
 		FROM captures c
 		LEFT JOIN chat_messages m ON m.capture_id = c.id` + where + `
-		GROUP BY c.id
-		ORDER BY c.created_at DESC
+		GROUP BY c.id` + orderClause + `
 		LIMIT ? OFFSET ?`
 
 	rows, err := d.sql.Query(query, append(args, f.Limit, offset)...)
@@ -91,6 +102,16 @@ func buildWhere(f ArchiveFilter) (string, []any) {
 	if f.Skill != "" {
 		clauses = append(clauses, `c.skill_used = ?`)
 		args = append(args, f.Skill)
+	}
+	if f.DateFrom != "" {
+		clauses = append(clauses, `c.created_at >= ?`)
+		args = append(args, f.DateFrom+" 00:00:00")
+	}
+	if f.DateTo != "" {
+		clauses = append(clauses, `c.created_at < ?`)
+		// upper bound is exclusive end-of-day → add one day's worth via SQLite date()
+		// callers pass YYYY-MM-DD; SQLite parses it as midnight, we shift one day forward.
+		args = append(args, f.DateTo+" 23:59:59.999")
 	}
 
 	if len(clauses) == 0 {

@@ -39,6 +39,17 @@
     {{end}}
   </select>
   {{end}}
+
+  <input class="date-input" type="date" name="from" value="{{.Filter.DateFrom}}"
+         title="From date" onchange="this.form.submit()">
+  <input class="date-input" type="date" name="to"   value="{{.Filter.DateTo}}"
+         title="To date" onchange="this.form.submit()">
+
+  <select class="sort-select" name="order" onchange="this.form.submit()">
+    <option value=""             {{if eq .Filter.OrderBy ""}}             selected{{end}}>Newest</option>
+    <option value="updated_desc" {{if eq .Filter.OrderBy "updated_desc"}} selected{{end}}>Last activity</option>
+    <option value="messages_desc"{{if eq .Filter.OrderBy "messages_desc"}}selected{{end}}>Most replies</option>
+  </select>
 </form>
 
 <!-- Grid -->
@@ -95,16 +106,25 @@
 {{if gt .Pages 1}}
 <div class="pagination">
   {{$f := .Filter}}
+  {{$extra := ""}}
+  {{if $f.Query}}{{$extra = printf "%s&q=%s" $extra $f.Query}}{{end}}
+  {{if $f.Todo}}{{$extra = printf "%s&filter=todo" $extra}}{{end}}
+  {{if $f.Public}}{{$extra = printf "%s&filter=public" $extra}}{{end}}
+  {{if $f.Skill}}{{$extra = printf "%s&skill=%s" $extra $f.Skill}}{{end}}
+  {{if $f.DateFrom}}{{$extra = printf "%s&from=%s" $extra $f.DateFrom}}{{end}}
+  {{if $f.DateTo}}{{$extra = printf "%s&to=%s" $extra $f.DateTo}}{{end}}
+  {{if $f.OrderBy}}{{$extra = printf "%s&order=%s" $extra $f.OrderBy}}{{end}}
+
   <a class="page-btn{{if le $f.Page 1}} disabled{{end}}"
-     href="/archive?page={{sub $f.Page 1}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">‹ Prev</a>
+     href="/archive?page={{sub $f.Page 1}}{{$extra}}">‹ Prev</a>
 
   {{range seq 1 .Pages}}
   <a class="page-btn{{if eq . $f.Page}} active{{end}}"
-     href="/archive?page={{.}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">{{.}}</a>
+     href="/archive?page={{.}}{{$extra}}">{{.}}</a>
   {{end}}
 
   <a class="page-btn{{if ge $f.Page $.Pages}} disabled{{end}}"
-     href="/archive?page={{add $f.Page 1}}{{if $f.Query}}&q={{$f.Query}}{{end}}{{if $f.Todo}}&filter=todo{{end}}{{if $f.Public}}&filter=public{{end}}{{if $f.Skill}}&skill={{$f.Skill}}{{end}}">Next ›</a>
+     href="/archive?page={{add $f.Page 1}}{{$extra}}">Next ›</a>
 </div>
 {{end}}
 {{end}}
