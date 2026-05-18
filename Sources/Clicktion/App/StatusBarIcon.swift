@@ -6,44 +6,46 @@ import AppKit
 enum StatusBarIcon {
     static func make(filled: Bool = false) -> NSImage {
         let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size)
-        image.lockFocus()
-        defer { image.unlockFocus() }
+        let image = NSImage(size: size, flipped: false) { _ in
+            let s = size.width / 24.0    // SVG viewBox is 24×24
+            let lineWidth: CGFloat = 1.8
 
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return image }
-        let s = size.width / 24.0    // SVG viewBox is 24×24
-        let lineWidth: CGFloat = 1.7
+            NSColor.black.setStroke()
+            NSColor.black.setFill()
 
-        ctx.setStrokeColor(NSColor.black.cgColor)
-        ctx.setLineWidth(lineWidth)
-        ctx.setLineCap(.round)
+            // Outer circle r=10 at (12,12)
+            let outer = NSBezierPath(ovalIn: NSRect(x: 2 * s, y: 2 * s, width: 20 * s, height: 20 * s))
+            outer.lineWidth = lineWidth
+            outer.stroke()
 
-        // Outer circle r=10 at (12,12)
-        ctx.strokeEllipse(in: CGRect(x: 2 * s, y: 2 * s, width: 20 * s, height: 20 * s))
+            // Inner dot r=3 — filled when active, outlined otherwise
+            let inner = NSBezierPath(ovalIn: NSRect(x: 9 * s, y: 9 * s, width: 6 * s, height: 6 * s))
+            inner.lineWidth = lineWidth
+            if filled {
+                inner.fill()
+            } else {
+                inner.stroke()
+            }
 
-        // Inner dot r=3 — filled when active (todo badge state), outlined otherwise
-        let inner = CGRect(x: 9 * s, y: 9 * s, width: 6 * s, height: 6 * s)
-        if filled {
-            ctx.setFillColor(NSColor.black.cgColor)
-            ctx.fillEllipse(in: inner)
-        } else {
-            ctx.strokeEllipse(in: inner)
+            // Four crosshair ticks
+            let ticks: [(NSPoint, NSPoint)] = [
+                (NSPoint(x: 12, y: 2),  NSPoint(x: 12, y: 6)),
+                (NSPoint(x: 12, y: 18), NSPoint(x: 12, y: 22)),
+                (NSPoint(x: 2,  y: 12), NSPoint(x: 6,  y: 12)),
+                (NSPoint(x: 18, y: 12), NSPoint(x: 22, y: 12))
+            ]
+            for (a, b) in ticks {
+                let path = NSBezierPath()
+                path.lineWidth = lineWidth
+                path.lineCapStyle = .round
+                path.move(to: NSPoint(x: a.x * s, y: a.y * s))
+                path.line(to: NSPoint(x: b.x * s, y: b.y * s))
+                path.stroke()
+            }
+
+            return true
         }
-
-        // Four crosshair ticks at the cardinal points
-        let ticks: [(CGPoint, CGPoint)] = [
-            (CGPoint(x: 12, y: 2),  CGPoint(x: 12, y: 6)),
-            (CGPoint(x: 12, y: 18), CGPoint(x: 12, y: 22)),
-            (CGPoint(x: 2,  y: 12), CGPoint(x: 6,  y: 12)),
-            (CGPoint(x: 18, y: 12), CGPoint(x: 22, y: 12))
-        ]
-        for (a, b) in ticks {
-            ctx.move(to: CGPoint(x: a.x * s, y: a.y * s))
-            ctx.addLine(to: CGPoint(x: b.x * s, y: b.y * s))
-        }
-        ctx.strokePath()
-
-        image.isTemplate = true   // macOS tints to match the menu bar
+        image.isTemplate = true
         return image
     }
 }
