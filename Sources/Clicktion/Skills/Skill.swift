@@ -48,19 +48,13 @@ struct SkillSecurity: Codable, Hashable {
     var allowFileWrite: Bool
     var allowNetwork: Bool
     var skipConfirmation: Bool
-    var dangerLevel: DangerLevel
     var blocklist: [String]
-
-    enum DangerLevel: String, Codable, CaseIterable, Hashable {
-        case none, low, medium, high
-    }
 
     static let safe = SkillSecurity(
         allowCLI: false,
         allowFileWrite: false,
         allowNetwork: false,
         skipConfirmation: false,
-        dangerLevel: .none,
         blocklist: []
     )
 
@@ -69,7 +63,6 @@ struct SkillSecurity: Codable, Hashable {
         case allowFileWrite = "allow_file_write"
         case allowNetwork = "allow_network"
         case skipConfirmation = "skip_confirmation"
-        case dangerLevel = "danger_level"
         case blocklist
     }
 }
