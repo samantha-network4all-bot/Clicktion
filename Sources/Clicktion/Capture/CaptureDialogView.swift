@@ -61,7 +61,7 @@ struct CaptureDialogView: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(Color.accentColor)
                     .font(.caption)
-                Text("Skills").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text("Select a skill").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                 Spacer()
                 if vm.isSuggestingSkill {
                     ProgressView().controlSize(.small).scaleEffect(0.7)
