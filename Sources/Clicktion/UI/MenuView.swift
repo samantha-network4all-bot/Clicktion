@@ -12,10 +12,7 @@ struct MenuView: View {
             modelRow
             Divider()
             captureButton
-            if state.openTodoCount > 0 {
-                Divider()
-                todoSection
-            }
+            todoButton
             Divider()
             menuActions
         }
@@ -54,14 +51,36 @@ struct MenuView: View {
         .contentShape(Rectangle())
     }
 
-    private var todoSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Todos (\(state.openTodoCount))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            // Todo items will be populated from the service
+    private var todoButton: some View {
+        Button(action: openTodos) {
+            HStack {
+                Label("Todos", systemImage: "checklist")
+                Spacer()
+                if state.openTodoCount > 0 {
+                    Text("\(state.openTodoCount)")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.accentColor)
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    private func openTodos() {
+        var components = URLComponents(
+            url: AppState.shared.serviceURL.appendingPathComponent("/archive"),
+            resolvingAgainstBaseURL: true
+        )!
+        components.queryItems = [URLQueryItem(name: "filter", value: "todo")]
+        if let url = components.url {
+            NSWorkspace.shared.open(url)
         }
     }
 
