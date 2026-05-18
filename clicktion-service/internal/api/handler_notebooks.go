@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -40,6 +41,13 @@ func (h *handler) serveNotebook(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(path, "/done") && r.Method == http.MethodPost {
 		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/done")
 		h.markNotebookDone(w, r, id)
+		return
+	}
+
+	// POST /notebooks/{id}/delete — remove the notebook + all its captures.
+	if strings.HasSuffix(path, "/delete") && r.Method == http.MethodPost {
+		id := strings.TrimSuffix(strings.TrimPrefix(path, "/"), "/delete")
+		h.notebookDelete(w, r, id)
 		return
 	}
 
@@ -189,6 +197,19 @@ func (h *handler) markNotebookDone(w http.ResponseWriter, r *http.Request, id st
 	}
 	http.Redirect(w, r, "/notebooks/"+id, http.StatusSeeOther)
 }
+
+func (h *handler) notebookDelete(w http.ResponseWriter, r *http.Request, id string) {
+	imagePaths, err := h.db.DeleteNotebook(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, p := range imagePaths {
+		_ = os.Remove(p)
+	}
+	http.Redirect(w, r, "/archive", http.StatusSeeOther)
+}
+
 
 // notebookRunSkill creates a fresh job for a notebook that doesn't have one
 // yet — typical when a Todo is picked up from the browser. The user picks

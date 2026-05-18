@@ -23,9 +23,9 @@
   </div>
 
   <div class="filter-tabs">
-    <a class="filter-tab{{if and (not .Filter.Todo) (not .Filter.Public) (eq .Filter.Skill "")}} active{{end}}"
+    <a class="filter-tab{{if and (not .Filter.OpenTodosOnly) (not .Filter.Public) (eq .Filter.Skill "")}} active{{end}}"
        href="/archive{{if .Filter.Query}}?q={{.Filter.Query}}{{end}}">All</a>
-    <a class="filter-tab{{if .Filter.Todo}} active{{end}}"
+    <a class="filter-tab{{if .Filter.OpenTodosOnly}} active{{end}}"
        href="/archive?filter=todo{{if .Filter.Query}}&q={{.Filter.Query}}{{end}}">Todos</a>
     <a class="filter-tab{{if .Filter.Public}} active{{end}}"
        href="/archive?filter=public{{if .Filter.Query}}&q={{.Filter.Query}}{{end}}">Public</a>
@@ -54,46 +54,43 @@
 
 <!-- Grid -->
 <div class="capture-grid">
-  {{if not .Captures}}
+  {{if not .Notebooks}}
   <div class="empty">
-    <h2>No captures yet</h2>
+    <h2>No notebooks yet</h2>
     <p>Use the Clicktion menu bar app to capture your first screenshot.</p>
   </div>
   {{else}}
-  {{range .Captures}}
-  <div class="capture-card">
-    {{if .ImagePath}}
-    <a href="/archive/captures/{{.ID}}">
-      <img class="card-thumb" src="/archive/images/{{.ID}}" alt="Capture" loading="lazy">
+  {{range .Notebooks}}
+  <div class="capture-card{{if and .IsTodo (not .TodoDone)}} capture-card-todo{{end}}">
+    {{if .LastCaptureID}}
+    <a href="/notebooks/{{.ID}}">
+      <img class="card-thumb" src="/archive/images/{{deref .LastCaptureID}}" alt="" loading="lazy">
     </a>
     {{else}}
-    <a href="/archive/captures/{{.ID}}" class="card-thumb-placeholder">⌥</a>
+    <a href="/notebooks/{{.ID}}" class="card-thumb-placeholder">⌥</a>
     {{end}}
 
     <div class="card-body">
       <div class="card-app">
-        {{if .AppName}}{{deref .AppName}}{{else}}Unknown app{{end}}
-        {{if .WindowTitle}} — <span style="font-weight:400;color:#6e6e73">{{truncate (deref .WindowTitle) 30}}</span>{{end}}
+        {{if .Title}}{{deref .Title}}{{else}}Untitled{{end}}
       </div>
-      {{if .LastMessage}}
-      <div class="card-preview">{{truncate .LastMessage 80}}</div>
-      {{else if .OCRText}}
-      <div class="card-preview">{{truncate .OCRText 80}}</div>
+      {{if .LastResponse}}
+      <div class="card-preview">{{truncate .LastResponse 80}}</div>
       {{end}}
       <div class="card-meta">
-        {{if .SkillUsed}}<span class="badge badge-skill">{{deref .SkillUsed}}</span>{{end}}
-        {{if .IsTodo}}<span class="badge badge-todo">Todo</span>{{end}}
+        {{if .SkillLastUsed}}<span class="badge badge-skill">{{deref .SkillLastUsed}}</span>{{end}}
+        {{if and .IsTodo (not .TodoDone)}}<span class="badge badge-todo">Todo</span>{{end}}
         {{if .IsPrivate}}<span class="badge badge-private">Private</span>
         {{else}}<span class="badge badge-public">Public</span>{{end}}
-        <span class="card-time">{{timeAgo .CreatedAt}}</span>
+        <span class="card-time">{{timeAgo .UpdatedAt}}</span>
       </div>
     </div>
 
     <div class="card-actions">
-      <a href="/archive/captures/{{.ID}}">Open</a>
+      <a href="/notebooks/{{.ID}}">Open</a>
       <div class="card-divider"></div>
-      <form method="post" action="/archive/captures/{{.ID}}/delete"
-            onsubmit="return confirm('Delete this capture? This cannot be undone.')">
+      <form method="post" action="/notebooks/{{.ID}}/delete"
+            onsubmit="return confirm('Delete this notebook and its captures? This cannot be undone.')">
         <button type="submit">Delete</button>
       </form>
     </div>
@@ -108,7 +105,7 @@
   {{$f := .Filter}}
   {{$extra := ""}}
   {{if $f.Query}}{{$extra = printf "%s&q=%s" $extra $f.Query}}{{end}}
-  {{if $f.Todo}}{{$extra = printf "%s&filter=todo" $extra}}{{end}}
+  {{if $f.OpenTodosOnly}}{{$extra = printf "%s&filter=todo" $extra}}{{end}}
   {{if $f.Public}}{{$extra = printf "%s&filter=public" $extra}}{{end}}
   {{if $f.Skill}}{{$extra = printf "%s&skill=%s" $extra $f.Skill}}{{end}}
   {{if $f.DateFrom}}{{$extra = printf "%s&from=%s" $extra $f.DateFrom}}{{end}}

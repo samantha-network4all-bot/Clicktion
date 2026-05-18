@@ -45,14 +45,6 @@ func (h *handler) serveAdmin(w http.ResponseWriter, r *http.Request) {
 	case path == "/models/probe" && r.Method == http.MethodPost:
 		h.adminModelProbe(w, r)
 
-	// API keys
-	case path == "/keys" && r.Method == http.MethodGet:
-		h.adminKeys(w, r)
-	case path == "/keys" && r.Method == http.MethodPost:
-		h.adminKeyCreate(w, r)
-	case strings.HasSuffix(path, "/delete") && strings.Contains(path, "/keys/") && r.Method == http.MethodPost:
-		h.adminKeyDelete(w, r, keyID(path))
-
 	// Storage
 	case path == "/storage" && r.Method == http.MethodGet:
 		h.adminStorage(w, r)
@@ -251,48 +243,6 @@ func (h *handler) adminModelSetDefault(w http.ResponseWriter, r *http.Request, i
 	redirect(w, r, "/admin/models?msg=Default+model+updated")
 }
 
-// MARK: - API Keys
-
-type adminKeysData struct {
-	Keys []db.APIKey
-	Msg  string
-}
-
-func (h *handler) adminKeys(w http.ResponseWriter, r *http.Request) {
-	keys, _ := h.db.ListAPIKeys()
-	renderTemplate(w, adminKeysTmpl, "admin_keys.html", adminKeysData{
-		Keys: keys,
-		Msg:  r.URL.Query().Get("msg"),
-	})
-}
-
-type adminKeyCreatedData struct {
-	Label     string
-	Plaintext string
-}
-
-func (h *handler) adminKeyCreate(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	label := strings.TrimSpace(r.FormValue("label"))
-	if label == "" {
-		label = "key-" + time.Now().Format("20060102")
-	}
-	plaintext, err := h.db.CreateAPIKey(label)
-	if err != nil {
-		redirect(w, r, "/admin/keys?msg="+urlEncode("Error: "+err.Error()))
-		return
-	}
-	renderTemplate(w, adminKeyCreatedTmpl, "admin_key_created.html", adminKeyCreatedData{
-		Label:     label,
-		Plaintext: plaintext,
-	})
-}
-
-func (h *handler) adminKeyDelete(w http.ResponseWriter, r *http.Request, id string) {
-	h.db.DeleteAPIKey(id)
-	redirect(w, r, "/admin/keys?msg=Key+deleted")
-}
-
 // MARK: - Storage
 
 type adminStorageData struct {
@@ -373,11 +323,6 @@ func modelFromForm(r *http.Request) db.Model {
 func modelID(path, suffix string) string {
 	path = strings.TrimPrefix(path, "/models/")
 	return strings.TrimSuffix(path, suffix)
-}
-
-func keyID(path string) string {
-	path = strings.TrimPrefix(path, "/keys/")
-	return strings.TrimSuffix(path, "/delete")
 }
 
 func atoi(s string) int {

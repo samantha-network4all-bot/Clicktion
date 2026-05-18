@@ -172,6 +172,28 @@ func (d *DB) GetCell(cellID string) (*NotebookCell, error) {
 	return &c, nil
 }
 
+// DistinctSkillsInNotebooks returns the unique skill names that have ever
+// produced a response cell — used to populate the archive filter dropdown.
+func (d *DB) DistinctSkillsInNotebooks() ([]string, error) {
+	rows, err := d.sql.Query(`
+		SELECT DISTINCT skill_name FROM notebook_cells
+		WHERE skill_name IS NOT NULL AND skill_name != ''
+		ORDER BY skill_name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // AppendCellByCapture finds the notebook owning the given capture (via the
 // primary capture cell) and appends a cell to it. Useful from job-runner
 // callsites that only know the capture_id. No-op if the notebook is missing.
@@ -183,6 +205,43 @@ func (d *DB) AppendCellByCapture(captureID string, cell NotebookCell) error {
 	cell.NotebookID = nb.ID
 	_, err = d.AppendCell(cell)
 	return err
+}
+
+// DeleteNotebook removes the notebook + its cells (cascade) + the captures
+// it referenced (and returns those captures' image paths so the caller can
+// unlink the files on disk). Idempotent on a missing notebook.
+func (d *DB) DeleteNotebook(id string) ([]string, error) {
+	rows, err := d.sql.Query(`
+		SELECT c.id, c.image_path FROM notebook_cells nc
+		JOIN captures c ON c.id = nc.capture_id
+		WHERE nc.notebook_id = ? AND nc.kind = 'capture'`, id)
+	if err != nil {
+		return nil, err
+	}
+	type capRef struct{ id, path string }
+	var refs []capRef
+	for rows.Next() {
+		var r capRef
+		if err := rows.Scan(&r.id, &r.path); err == nil {
+			refs = append(refs, r)
+		}
+	}
+	rows.Close()
+
+	if _, err := d.sql.Exec(`DELETE FROM notebooks WHERE id = ?`, id); err != nil {
+		return nil, err
+	}
+	// captures aren't ON DELETE CASCADE from notebook_cells (capture_id is
+	// nullable + SET NULL), so clean up explicitly.
+	var paths []string
+	for _, r := range refs {
+		if _, err := d.sql.Exec(`DELETE FROM captures WHERE id = ?`, r.id); err == nil {
+			if r.path != "" {
+				paths = append(paths, r.path)
+			}
+		}
+	}
+	return paths, nil
 }
 
 // MarkNotebookDone flips todo_done=1 on an open todo notebook.
@@ -261,19 +320,25 @@ func (d *DB) ListNotebookCells(notebookID string) ([]NotebookCell, error) {
 // NotebookSummary is one row in a notebook list view (workflows / archive).
 type NotebookSummary struct {
 	Notebook
-	CellCount      int
-	LastCaptureID  *string // capture_id of the most recent capture cell, for the thumbnail
-	LastResponse   string  // first 200 chars of the latest response cell, for preview
-	SkillLastUsed  *string
+	CellCount     int
+	LastCaptureID *string // capture_id of the most recent capture cell, for the thumbnail
+	LastResponse  string  // first 200 chars of the latest response cell, for preview
+	SkillLastUsed *string
+	IsPrivate     bool // pulled from the primary capture for badge rendering
 }
 
 // NotebookFilter drives ListNotebooks.
 type NotebookFilter struct {
-	OpenTodosOnly  bool      // is_todo=1 AND todo_done=0
-	RecentDays     int       // updated_at >= now() - days; 0 = no filter
-	Page           int
-	Limit          int
-	OrderBy        string    // "" (default = updated DESC), "created", "todo_oldest"
+	OpenTodosOnly bool   // is_todo=1 AND todo_done=0
+	RecentDays    int    // updated_at >= now() - days; 0 = no filter
+	Query         string // full-text across OCR / app / window of any capture cell
+	Public        bool   // only notebooks whose primary capture is_private=0
+	Skill         string // notebooks containing a response cell with this skill_name
+	DateFrom      string // ISO YYYY-MM-DD inclusive
+	DateTo        string // ISO YYYY-MM-DD inclusive
+	Page          int
+	Limit         int
+	OrderBy       string // "" (default = updated DESC), "created", "todo_oldest", "messages_desc"
 }
 
 // ListNotebooks returns a paginated list of summaries matching the filter.
@@ -294,6 +359,40 @@ func (d *DB) ListNotebooks(f NotebookFilter) ([]NotebookSummary, int, error) {
 		clauses = append(clauses, "n.updated_at >= datetime('now', ?)")
 		args = append(args, fmt.Sprintf("-%d days", f.RecentDays))
 	}
+	if f.Query != "" {
+		// EXISTS subquery against any capture cell of this notebook with
+		// matching OCR / app / window text.
+		clauses = append(clauses, `EXISTS (
+			SELECT 1 FROM notebook_cells nc
+			JOIN captures c ON c.id = nc.capture_id
+			WHERE nc.notebook_id = n.id AND nc.kind = 'capture'
+			  AND (c.ocr_text LIKE ? OR c.app_name LIKE ? OR c.window_title LIKE ?)
+		)`)
+		like := "%" + f.Query + "%"
+		args = append(args, like, like, like)
+	}
+	if f.Public {
+		clauses = append(clauses, `EXISTS (
+			SELECT 1 FROM notebook_cells nc
+			JOIN captures c ON c.id = nc.capture_id
+			WHERE nc.notebook_id = n.id AND nc.kind = 'capture' AND c.is_private = 0
+		)`)
+	}
+	if f.Skill != "" {
+		clauses = append(clauses, `EXISTS (
+			SELECT 1 FROM notebook_cells nc
+			WHERE nc.notebook_id = n.id AND nc.skill_name = ?
+		)`)
+		args = append(args, f.Skill)
+	}
+	if f.DateFrom != "" {
+		clauses = append(clauses, "n.created_at >= ?")
+		args = append(args, f.DateFrom+" 00:00:00")
+	}
+	if f.DateTo != "" {
+		clauses = append(clauses, "n.created_at < ?")
+		args = append(args, f.DateTo+" 23:59:59.999")
+	}
 	where := ""
 	if len(clauses) > 0 {
 		where = " WHERE " + strings.Join(clauses, " AND ")
@@ -311,6 +410,8 @@ func (d *DB) ListNotebooks(f NotebookFilter) ([]NotebookSummary, int, error) {
 		orderClause = " ORDER BY n.created_at DESC"
 	case "todo_oldest":
 		orderClause = " ORDER BY n.created_at ASC"
+	case "messages_desc":
+		orderClause = " ORDER BY (SELECT COUNT(*) FROM notebook_cells WHERE notebook_id = n.id) DESC, n.updated_at DESC"
 	}
 
 	query := `
@@ -324,7 +425,11 @@ func (d *DB) ListNotebooks(f NotebookFilter) ([]NotebookSummary, int, error) {
 		         ORDER BY position DESC LIMIT 1) AS last_resp,
 		       (SELECT skill_name FROM notebook_cells
 		         WHERE notebook_id = n.id AND skill_name IS NOT NULL
-		         ORDER BY position DESC LIMIT 1) AS last_skill
+		         ORDER BY position DESC LIMIT 1) AS last_skill,
+		       (SELECT c.is_private FROM notebook_cells nc
+		         JOIN captures c ON c.id = nc.capture_id
+		         WHERE nc.notebook_id = n.id AND nc.kind = 'capture'
+		         ORDER BY nc.position ASC LIMIT 1) AS is_private
 		FROM notebooks n` + where + orderClause + ` LIMIT ? OFFSET ?`
 	args = append(args, f.Limit, (f.Page-1)*f.Limit)
 
@@ -337,16 +442,20 @@ func (d *DB) ListNotebooks(f NotebookFilter) ([]NotebookSummary, int, error) {
 	for rows.Next() {
 		var s NotebookSummary
 		var isTodo, todoDone int
+		var isPrivate sql.NullInt64
 		var lastResp sql.NullString
 		if err := rows.Scan(&s.ID, &s.Title, &isTodo, &todoDone,
 			&s.CreatedAt, &s.UpdatedAt, &s.CellCount,
-			&s.LastCaptureID, &lastResp, &s.SkillLastUsed); err != nil {
+			&s.LastCaptureID, &lastResp, &s.SkillLastUsed, &isPrivate); err != nil {
 			return nil, 0, err
 		}
 		s.IsTodo = isTodo != 0
 		s.TodoDone = todoDone != 0
 		if lastResp.Valid {
 			s.LastResponse = lastResp.String
+		}
+		if isPrivate.Valid {
+			s.IsPrivate = isPrivate.Int64 != 0
 		}
 		out = append(out, s)
 	}

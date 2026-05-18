@@ -19,8 +19,6 @@ var (
 	adminDashTmpl        *template.Template
 	adminModelsTmpl      *template.Template
 	adminModelFormTmpl   *template.Template
-	adminKeysTmpl        *template.Template
-	adminKeyCreatedTmpl  *template.Template
 	adminStorageTmpl     *template.Template
 )
 
@@ -94,8 +92,6 @@ func init() {
 	adminDashTmpl       = parse("base.html", "admin.html")
 	adminModelsTmpl     = parse("base.html", "admin_models.html")
 	adminModelFormTmpl  = parse("base.html", "admin_model_form.html")
-	adminKeysTmpl       = parse("base.html", "admin_keys.html")
-	adminKeyCreatedTmpl = parse("base.html", "admin_key_created.html")
 	adminStorageTmpl    = parse("base.html", "admin_storage.html")
 }
 

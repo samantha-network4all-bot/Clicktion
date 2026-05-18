@@ -19,12 +19,12 @@ import (
 // MARK: - Archive index
 
 type archivePage struct {
-	Captures []db.ArchiveCapture
-	Stats    db.StorageStats
-	Skills   []string
-	Filter   db.ArchiveFilter
-	Total    int
-	Pages    int
+	Notebooks []db.NotebookSummary
+	Stats     db.StorageStats
+	Skills    []string
+	Filter    db.NotebookFilter
+	Total     int
+	Pages     int
 }
 
 func (h *handler) serveArchive(w http.ResponseWriter, r *http.Request) {
@@ -48,26 +48,26 @@ func (h *handler) serveArchive(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) archiveIndex(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	filter := db.ArchiveFilter{
-		Query:    q.Get("q"),
-		Todo:     q.Get("filter") == "todo",
-		Public:   q.Get("filter") == "public",
-		Skill:    q.Get("skill"),
-		DateFrom: q.Get("from"),
-		DateTo:   q.Get("to"),
-		OrderBy:  q.Get("order"),
-		Limit:    48,
+	filter := db.NotebookFilter{
+		Query:         q.Get("q"),
+		OpenTodosOnly: q.Get("filter") == "todo",
+		Public:        q.Get("filter") == "public",
+		Skill:         q.Get("skill"),
+		DateFrom:      q.Get("from"),
+		DateTo:        q.Get("to"),
+		OrderBy:       q.Get("order"),
+		Limit:         48,
 	}
 	if p, err := strconv.Atoi(q.Get("page")); err == nil && p > 0 {
 		filter.Page = p
 	}
 
-	captures, total, err := h.db.SearchCaptures(filter)
+	notebooks, total, err := h.db.ListNotebooks(filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	skills, _ := h.db.DistinctSkills()
+	skills, _ := h.db.DistinctSkillsInNotebooks()
 	stats := h.db.StorageStats(filepath.Join(h.dataDir, "captures"))
 
 	pages := (total + filter.Limit - 1) / filter.Limit
@@ -76,12 +76,12 @@ func (h *handler) archiveIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderTemplate(w, archiveIndexTmpl, "archive.html", archivePage{
-		Captures: captures,
-		Stats:    stats,
-		Skills:   skills,
-		Filter:   filter,
-		Total:    total,
-		Pages:    pages,
+		Notebooks: notebooks,
+		Stats:     stats,
+		Skills:    skills,
+		Filter:    filter,
+		Total:     total,
+		Pages:     pages,
 	})
 }
 
