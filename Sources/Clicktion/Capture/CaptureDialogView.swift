@@ -1,10 +1,11 @@
 import SwiftUI
 
 private let kDialogWidth: CGFloat     = 672
-private let kDialogHeight: CGFloat    = 640   // fixed — prevents window auto-resize crash
+private let kDialogHeight: CGFloat    = 600   // fixed — prevents window auto-resize crash
 private let kThumbnailHeight: CGFloat = 360
 private let kCopySidebar: CGFloat     = 36    // width of the copy-button column beside thumbnail
 private let kOCRPreviewSentences      = 5     // OCR preview cap; full text still sent to LLM
+private let kOCRHeight: CGFloat       = 80    // 50% shorter than the previous flexible OCR pane
 
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
@@ -97,9 +98,34 @@ struct CaptureDialogView: View {
         }
     }
 
-    // MARK: - OCR section (below thumbnail, full width)
+    // MARK: - OCR section (label bar + scrollable text below thumbnail)
 
     private var ocrSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ocrHeader
+            ocrScroll
+        }
+    }
+
+    private var ocrHeader: some View {
+        HStack(spacing: 4) {
+            Text("Text Captures:")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            CopyButton(help: "Copy text to clipboard",
+                       disabled: vm.ocrText.isEmpty || vm.isOCRRunning) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(vm.ocrText, forType: .string)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(Divider(), alignment: .bottom)
+    }
+
+    private var ocrScroll: some View {
         ScrollView {
             Group {
                 if vm.isOCRRunning {
@@ -108,12 +134,12 @@ struct CaptureDialogView: View {
                         Text("Reading text…").foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
+                    .padding(10)
                 } else if vm.ocrText.isEmpty {
                     Text("No text detected")
                         .foregroundStyle(.tertiary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
+                        .padding(10)
                 } else {
                     let (preview, hiddenCount) = firstSentences(vm.ocrText, limit: kOCRPreviewSentences)
                     VStack(alignment: .leading, spacing: 4) {
@@ -127,21 +153,13 @@ struct CaptureDialogView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                    .padding(12)
+                    .padding(10)
                 }
             }
         }
         .textSelection(.enabled)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(height: kOCRHeight)
         .background(Color(nsColor: .textBackgroundColor))
-        .overlay(alignment: .topTrailing) {
-            CopyButton(help: "Copy text to clipboard",
-                       disabled: vm.ocrText.isEmpty || vm.isOCRRunning) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(vm.ocrText, forType: .string)
-            }
-            .padding(4)
-        }
     }
 
     // MARK: - Bottom bar: skill picker + Cancel + Action
