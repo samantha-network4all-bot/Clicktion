@@ -13,11 +13,20 @@ final class CaptureDialogWindow {
         window?.close()
 
         let vm = CaptureDialogViewModel(capture: capture)
-        let view = CaptureDialogView(vm: vm) { [weak self] jobID, captureID, skill in
-            self?.window?.close()
-            self?.window = nil
-            ChatWindowController.shared.open(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
-        }
+        let view = CaptureDialogView(
+            vm: vm,
+            onSend: { [weak self] jobID, captureID, skill in
+                self?.window?.close()
+                self?.window = nil
+                ChatWindowController.shared.open(capture: capture, captureID: captureID, jobID: jobID, skill: skill)
+            },
+            onSkillClicked: { [weak self] in
+                // Hide the dialog immediately for snappy UX — the underlying
+                // upload + job-create continues asynchronously and onSend
+                // closes the window properly when it completes.
+                self?.window?.orderOut(nil)
+            }
+        )
 
         let controller = NSHostingController(rootView: view)
         controller.sizingOptions = .preferredContentSize

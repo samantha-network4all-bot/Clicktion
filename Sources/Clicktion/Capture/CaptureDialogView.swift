@@ -11,6 +11,7 @@ private let kOCRHeight: CGFloat       = 80    // 50% shorter than the previous f
 struct CaptureDialogView: View {
     @StateObject var vm: CaptureDialogViewModel
     var onSend: (String?, String?, Skill?) -> Void
+    var onSkillClicked: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 0) {
@@ -121,7 +122,11 @@ struct CaptureDialogView: View {
         guard !vm.isSending else { return }
         vm.selectedSkill = skill
         vm.skillDidChange(skill)
+        // Kick off the async job, then hide the dialog right away so the
+        // user gets immediate feedback. The completion still fires later
+        // and opens the chat window once the job is registered.
         vm.send { jobID, captureID, sk in onSend(jobID, captureID, sk) }
+        onSkillClicked()
     }
 
     // MARK: - Unified title/annotation toolbar

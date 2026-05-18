@@ -33,7 +33,7 @@ func (d *DB) SearchCaptures(f ArchiveFilter) ([]ArchiveCapture, int, error) {
 
 	where, args := buildWhere(f)
 
-	countQuery := `SELECT COUNT(*) FROM captures` + where
+	countQuery := `SELECT COUNT(*) FROM captures c` + where
 	var total int
 	if err := d.sql.QueryRow(countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
