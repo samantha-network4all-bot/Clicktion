@@ -17,8 +17,6 @@ struct CaptureDialogView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            skillsSidebar
-            Divider()
             VStack(spacing: 0) {
                 annotationToolbar
                 thumbnailRow
@@ -29,8 +27,10 @@ struct CaptureDialogView: View {
                 advancedSection
             }
             .frame(width: kDialogWidth)
+            Divider()
+            skillsSidebar
         }
-        .frame(width: kSkillsWidth + 1 + kDialogWidth, height: kDialogHeight)
+        .frame(width: kDialogWidth + 1 + kSkillsWidth, height: kDialogHeight)
         .onAppear { vm.onAppear() }
     }
 
