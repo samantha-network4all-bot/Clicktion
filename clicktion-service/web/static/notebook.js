@@ -14,9 +14,13 @@
 (() => {
   const form = document.getElementById('follow-up-form');
   const picker = document.getElementById('skill-picker');
-  if (!form && !picker) return;
+  const ctx = document.getElementById('notebook-context');
+  // Markdown-cell controls need to work even when no form/picker is visible
+  // (e.g. a done todo with notes), so fall back to the hidden context node.
+  const idHost = form || picker || ctx;
+  if (!idHost) return;
 
-  const notebookID = (form || picker).dataset.notebook;
+  const notebookID = idHost.dataset.notebook;
   const cellsContainer = document.querySelector('.cells');
   const streamingCell = document.getElementById('streaming-cell');
   const streamingBody = document.getElementById('streaming-body');
@@ -120,6 +124,88 @@
   }
 
   if (!form) return; // page is in skill-picker mode only
+
+  // Markdown cell handlers — insert / edit / delete (P3.1)
+  const reload = () => location.reload();
+
+  document.querySelectorAll('.md-insert-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const after = parseInt(btn.dataset.after, 10);
+      const content = prompt('New note (markdown allowed):');
+      if (content == null || content.trim() === '') return;
+      try {
+        const resp = await fetch(`/notebooks/${notebookID}/cells`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content, after_position: after }),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        reload();
+      } catch (err) {
+        alert(`Could not insert note: ${err.message || err}`);
+      }
+    });
+  });
+
+  document.querySelectorAll('.md-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cellID = btn.dataset.cell;
+      const cell = document.querySelector(`.cell[data-cell-id="${cellID}"]`);
+      if (!cell || cell.dataset.editing === '1') return;
+      cell.dataset.editing = '1';
+
+      const view = cell.querySelector('.md-content');
+      const raw  = cell.querySelector('.md-raw');
+      view.style.display = 'none';
+
+      const ta = document.createElement('textarea');
+      ta.className = 'ocr-edit-area'; // re-use style
+      ta.value = raw.textContent;
+      ta.rows = Math.min(20, Math.max(3, raw.textContent.split('\n').length));
+      const bar = document.createElement('div');
+      bar.className = 'ocr-edit-bar';
+      bar.innerHTML = `
+        <button type="button" class="btn btn-primary md-save">Save</button>
+        <button type="button" class="btn btn-ghost md-cancel">Cancel</button>
+      `;
+      view.parentNode.insertBefore(ta, view.nextSibling);
+      view.parentNode.insertBefore(bar, ta.nextSibling);
+      ta.focus();
+
+      const close = () => {
+        ta.remove(); bar.remove(); view.style.display = '';
+        delete cell.dataset.editing;
+      };
+      bar.querySelector('.md-cancel').addEventListener('click', close);
+      bar.querySelector('.md-save').addEventListener('click', async () => {
+        try {
+          const resp = await fetch(`/notebooks/${notebookID}/cells/${cellID}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: ta.value }),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+          reload();
+        } catch (err) {
+          alert(`Could not save: ${err.message || err}`);
+        }
+      });
+    });
+  });
+
+  document.querySelectorAll('.md-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cellID = btn.dataset.cell;
+      if (!confirm('Delete this note?')) return;
+      try {
+        const resp = await fetch(`/notebooks/${notebookID}/cells/${cellID}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error(await resp.text());
+        reload();
+      } catch (err) {
+        alert(`Could not delete: ${err.message || err}`);
+      }
+    });
+  });
 
   // OCR edit — inline textarea swap on capture cells. Save persists via
   // POST /notebooks/{id}/edit-ocr and reloads the page so the new content

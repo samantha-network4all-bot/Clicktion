@@ -95,6 +95,83 @@ func (d *DB) AppendCell(c NotebookCell) (NotebookCell, error) {
 	return c, err
 }
 
+// InsertCell adds a cell at a specific position, shifting cells at and
+// after that position down by one. Used by the "+ Markdown" inserter
+// between existing cells.
+func (d *DB) InsertCell(c NotebookCell, atPosition int) (NotebookCell, error) {
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return c, err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
+		`UPDATE notebook_cells SET position = position + 1
+		 WHERE notebook_id = ? AND position >= ?`,
+		c.NotebookID, atPosition); err != nil {
+		return c, err
+	}
+
+	c.ID = newID()
+	c.Position = atPosition
+	c.CreatedAt = time.Now()
+	if _, err := tx.Exec(`
+		INSERT INTO notebook_cells
+		  (id, notebook_id, position, kind, capture_id, content, thinking, skill_name, model_used, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.NotebookID, c.Position, c.Kind, c.CaptureID,
+		c.Content, c.Thinking, c.SkillName, c.ModelUsed, c.CreatedAt); err != nil {
+		return c, err
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE notebooks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		c.NotebookID); err != nil {
+		return c, err
+	}
+	return c, tx.Commit()
+}
+
+// UpdateCellContent overwrites the content (and thinking) of an existing
+// cell. Used by markdown-cell edits.
+func (d *DB) UpdateCellContent(cellID, content string) error {
+	if _, err := d.sql.Exec(
+		`UPDATE notebook_cells SET content = ? WHERE id = ?`, content, cellID); err != nil {
+		return err
+	}
+	_, err := d.sql.Exec(`
+		UPDATE notebooks SET updated_at = CURRENT_TIMESTAMP
+		WHERE id IN (SELECT notebook_id FROM notebook_cells WHERE id = ?)`, cellID)
+	return err
+}
+
+// DeleteCell removes a cell. Positions of the remaining cells are left as-is
+// (gaps are fine — they just affect the integer order).
+func (d *DB) DeleteCell(cellID string) error {
+	_, err := d.sql.Exec(`DELETE FROM notebook_cells WHERE id = ?`, cellID)
+	return err
+}
+
+// GetCell fetches a single cell.
+func (d *DB) GetCell(cellID string) (*NotebookCell, error) {
+	var c NotebookCell
+	var kindStr string
+	err := d.sql.QueryRow(`
+		SELECT id, notebook_id, position, kind, capture_id, content, thinking,
+		       skill_name, model_used, created_at
+		FROM notebook_cells WHERE id = ?`, cellID).Scan(
+		&c.ID, &c.NotebookID, &c.Position, &kindStr, &c.CaptureID,
+		&c.Content, &c.Thinking, &c.SkillName, &c.ModelUsed, &c.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.Kind = CellKind(kindStr)
+	return &c, nil
+}
+
 // AppendCellByCapture finds the notebook owning the given capture (via the
 // primary capture cell) and appends a cell to it. Useful from job-runner
 // callsites that only know the capture_id. No-op if the notebook is missing.

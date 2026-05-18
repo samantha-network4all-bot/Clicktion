@@ -743,13 +743,32 @@ nav {
 .skill-chip:hover:not(:disabled) { border-color: var(--accent); }
 .skill-chip:disabled { opacity: 0.4; cursor: default; }
 .cell-action {
-  margin-left: auto;
   background: transparent; border: 1px solid var(--border);
   border-radius: 6px; padding: 3px 8px;
   font-size: 11px; font-weight: 500; color: var(--secondary);
   cursor: pointer;
 }
+.cell-label > .cell-action:first-of-type { margin-left: auto; }
+.cell-label > .cell-action + .cell-action { margin-left: 4px; }
 .cell-action:hover { border-color: var(--accent); color: var(--accent); }
+
+.cell-inserter {
+  display: flex; justify-content: center;
+  margin: -6px 0;
+  height: 0; overflow: visible;
+  opacity: 0; transition: opacity 120ms;
+}
+.cells:hover .cell-inserter, .cell-inserter:focus-within { opacity: 1; }
+.md-insert-btn {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 11px; font-weight: 500;
+  color: var(--secondary);
+  cursor: pointer;
+}
+.md-insert-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 .ocr-edit-area {
   width: 100%; box-sizing: border-box;

@@ -82,11 +82,21 @@
     </div>
 
   {{else if eq (printf "%s" .Kind) "markdown"}}
-    <div class="cell cell-markdown">
-      <div class="cell-label">You</div>
-      <div class="cell-body">{{renderContent .Content}}</div>
+    <div class="cell cell-markdown" data-cell-id="{{.ID}}" data-cell-position="{{.Position}}">
+      <div class="cell-label">
+        Note
+        <button type="button" class="cell-action md-edit-btn" data-cell="{{.ID}}" title="Edit">✎</button>
+        <button type="button" class="cell-action md-delete-btn" data-cell="{{.ID}}" title="Delete">✕</button>
+      </div>
+      <div class="cell-body md-content">{{renderContent .Content}}</div>
+      <pre class="md-raw" hidden>{{.Content}}</pre>
     </div>
   {{end}}
+
+  <!-- "+ Markdown" inserter between every pair of cells -->
+  <div class="cell-inserter">
+    <button type="button" class="md-insert-btn" data-after="{{.Position}}">+ Note</button>
+  </div>
 
   {{end}}
 
@@ -125,5 +135,9 @@
   Open the Mac app and add skills from the capture dialog or Edit Skills menu.
 </div>
 {{end}}
+
+<!-- Notebook-level data hook so the JS can reach the notebook ID even when
+     no follow-up form / picker is rendered (e.g. a done todo with notes). -->
+<div id="notebook-context" data-notebook="{{.Notebook.ID}}" hidden></div>
 <script src="/static/notebook.js"></script>
 {{end}}

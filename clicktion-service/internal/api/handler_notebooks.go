@@ -71,6 +71,27 @@ func (h *handler) serveNotebook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// /notebooks/{id}/cells[...] — markdown cell CRUD (P3.1)
+	if rest, ok := strings.CutPrefix(path, "/"); ok && strings.HasPrefix(rest, "") {
+		parts := strings.Split(rest, "/")
+		// parts: [notebookID, "cells", ...]
+		if len(parts) >= 2 && parts[1] == "cells" {
+			notebookID := parts[0]
+			if len(parts) == 2 && r.Method == http.MethodPost {
+				h.notebookInsertCell(w, r, notebookID)
+				return
+			}
+			if len(parts) == 3 && r.Method == http.MethodPatch {
+				h.notebookUpdateCell(w, r, notebookID, parts[2])
+				return
+			}
+			if len(parts) == 3 && r.Method == http.MethodDelete {
+				h.notebookDeleteCell(w, r, notebookID, parts[2])
+				return
+			}
+		}
+	}
+
 	// GET /notebooks/{id}/stream?job=X — browser-side SSE (no Bearer auth).
 	if strings.HasSuffix(path, "/stream") && r.Method == http.MethodGet {
 		jobID := r.URL.Query().Get("job")
@@ -232,6 +253,85 @@ func (h *handler) notebookRunSkill(w http.ResponseWriter, r *http.Request, noteb
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"job_id":"%s"}`, job.ID)
+}
+
+// notebookInsertCell adds a markdown cell at a chosen position. Body:
+// { content, after_position } — the new cell goes at after_position+1.
+// If after_position is missing the cell is appended at the end.
+func (h *handler) notebookInsertCell(w http.ResponseWriter, r *http.Request, notebookID string) {
+	var body struct {
+		Content       string `json:"content"`
+		AfterPosition *int   `json:"after_position"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	cell := db.NotebookCell{
+		NotebookID: notebookID,
+		Kind:       db.CellMarkdown,
+		Content:    body.Content,
+	}
+	var saved db.NotebookCell
+	var err error
+	if body.AfterPosition == nil {
+		saved, err = h.db.AppendCell(cell)
+	} else {
+		saved, err = h.db.InsertCell(cell, *body.AfterPosition+1)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"id":"%s","position":%d}`, saved.ID, saved.Position)
+}
+
+// notebookUpdateCell rewrites the content of an existing cell. Permission
+// check: the cell must belong to the given notebook.
+func (h *handler) notebookUpdateCell(w http.ResponseWriter, r *http.Request, notebookID, cellID string) {
+	cell, err := h.db.GetCell(cellID)
+	if err != nil || cell == nil || cell.NotebookID != notebookID {
+		http.Error(w, "cell not found", http.StatusNotFound)
+		return
+	}
+	if cell.Kind != db.CellMarkdown {
+		http.Error(w, "only markdown cells can be edited", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := h.db.UpdateCellContent(cellID, body.Content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// notebookDeleteCell removes a cell after a notebook-scope permission check.
+// Capture cells are protected (you'd lose your screenshot reference).
+func (h *handler) notebookDeleteCell(w http.ResponseWriter, r *http.Request, notebookID, cellID string) {
+	cell, err := h.db.GetCell(cellID)
+	if err != nil || cell == nil || cell.NotebookID != notebookID {
+		http.Error(w, "cell not found", http.StatusNotFound)
+		return
+	}
+	if cell.Kind == db.CellCapture {
+		http.Error(w, "capture cells cannot be deleted — delete the notebook instead", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.DeleteCell(cellID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // notebookEditOCR updates a capture's OCR text after the user manually
