@@ -3,6 +3,7 @@ import SwiftUI
 struct BrowserAgentView: View {
     @ObservedObject var vm: BrowserAgentViewModel
     @ObservedObject private var speech = SpeechManager.shared
+    @ObservedObject private var appState = AppState.shared
     @State private var instruction = ""
 
     private var isListening: Bool {
@@ -52,10 +53,33 @@ struct BrowserAgentView: View {
 
             Divider()
 
+            controls
+
             inputArea
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onAppear { vm.loadModels() }
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Ask before each action", isOn: $vm.confirmEachAction)
+                .font(.caption)
+
+            HStack {
+                Text("Vision model").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $appState.browserVisionModelID) {
+                    Text("Default").tag("")
+                    ForEach(vm.models) { model in
+                        Text(model.name).tag(model.id.uuidString)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 140)
+            }
+        }
     }
 
     private var transcript: some View {

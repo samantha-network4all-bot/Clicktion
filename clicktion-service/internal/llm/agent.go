@@ -104,3 +104,55 @@ func (c *Client) CompleteWithTools(ctx context.Context, messages []AgentMessage,
 	msg := payload.Choices[0].Message
 	return AgentTurn{Content: msg.Content, ToolCalls: msg.ToolCalls}, nil
 }
+
+// CompleteVision asks a vision model a question about a base64 PNG screenshot
+// and returns the full text answer (non-streaming).
+func (c *Client) CompleteVision(ctx context.Context, question, imageBase64 string, maxTokens int) (string, error) {
+	mt := maxTokens
+	body, err := json.Marshal(chatRequest{
+		Model:     c.ModelName,
+		Messages:  []Message{VisionMessage(RoleUser, question, imageBase64)},
+		Stream:    false,
+		MaxTokens: &mt,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.BaseURL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var buf bytes.Buffer
+		buf.ReadFrom(resp.Body)
+		return "", fmt.Errorf("LLM returned %d: %s", resp.StatusCode, buf.String())
+	}
+
+	var payload struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return "", err
+	}
+	if len(payload.Choices) == 0 {
+		return "", fmt.Errorf("no choices in response")
+	}
+	return payload.Choices[0].Message.Content, nil
+}

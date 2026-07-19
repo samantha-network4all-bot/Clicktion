@@ -16,6 +16,10 @@ final class BrowserAgentViewModel: ObservableObject {
     @Published var isRunning = false
     @Published var isListening = false
     @Published var urlText = ""
+    /// Confirm before every click/type (not just sensitive ones).
+    @Published var confirmEachAction = false
+    /// Configured models, for the vision-model picker.
+    @Published var models: [ModelConfig] = []
 
     private var conversation: [AgentMessage] = [
         AgentMessage(role: "system", content: BrowserAgentViewModel.systemPrompt)
@@ -43,6 +47,13 @@ final class BrowserAgentViewModel: ObservableObject {
         task = nil
         isRunning = false
         log.append(AgentLogEntry(role: .action, text: "Stopped."))
+    }
+
+    func loadModels() {
+        Task { [weak self] in
+            let list = (try? await ServiceClient.shared.fetchModels()) ?? []
+            self?.models = list
+        }
     }
 
     /// Directly open a URL (from the URL bar).
@@ -104,6 +115,10 @@ final class BrowserAgentViewModel: ObservableObject {
         case "type":
             let ref = (args["ref"] as? String) ?? ""
             let text = (args["text"] as? String) ?? ""
+            if needsConfirmation(label: ref), !confirm("Allow typing into “\(ref)”?") {
+                log.append(AgentLogEntry(role: .action, text: "type cancelled → \(ref)"))
+                return ("Cancelled by user.", false)
+            }
             log.append(AgentLogEntry(role: .action, text: "type \"\(text)\" → \(ref)"))
             let ok = await web.fill(ref: ref, text: text)
             return (ok ? "Typed into \(ref)." : "Element \(ref) not found.", false)
@@ -111,7 +126,7 @@ final class BrowserAgentViewModel: ObservableObject {
         case "click":
             let ref = (args["ref"] as? String) ?? ""
             let label = (args["label"] as? String) ?? ref
-            if isSensitive(label), !confirm("Allow clicking “\(label)”?") {
+            if needsConfirmation(label: label), !confirm("Allow clicking “\(label)”?") {
                 log.append(AgentLogEntry(role: .action, text: "click cancelled → \(label)"))
                 return ("Cancelled by user.", false)
             }
@@ -119,6 +134,23 @@ final class BrowserAgentViewModel: ObservableObject {
             let ok = await web.click(ref: ref)
             await web.waitUntilIdle()
             return (ok ? await pageState(prefix: "Clicked \(label).") : "Element \(ref) not found.", false)
+
+        case "look_at_screen":
+            let question = (args["question"] as? String)
+                ?? "Describe the page and where the key interactive elements are."
+            log.append(AgentLogEntry(role: .action, text: "look_at_screen: \(question)"))
+            guard let image = await web.snapshot() else {
+                return ("Screenshot failed.", false)
+            }
+            let modelID = AppState.shared.browserVisionModelID
+            do {
+                let description = try await ServiceClient.shared.agentVision(
+                    image: image, question: question,
+                    modelID: modelID.isEmpty ? nil : modelID)
+                return ("Screen description: \(description)", false)
+            } catch {
+                return ("Vision lookup failed: \(error.localizedDescription)", false)
+            }
 
         case "done":
             let summary = (args["summary"] as? String) ?? "Done."
@@ -140,6 +172,10 @@ final class BrowserAgentViewModel: ObservableObject {
             Page text excerpt:
             \(text)
             """
+    }
+
+    private func needsConfirmation(label: String) -> Bool {
+        confirmEachAction || isSensitive(label)
     }
 
     private func isSensitive(_ label: String) -> Bool {
@@ -166,8 +202,10 @@ final class BrowserAgentViewModel: ObservableObject {
         the element refs returned by navigate/read_page (never invent a ref). \
         Workflow: navigate to a site, read_page to see interactable elements, \
         then type into fields and click buttons by ref. Call read_page again after \
-        actions that change the page. Keep going until the user's request is done, \
-        then call done with a short summary. Be concise.
+        actions that change the page. If the element list is not enough to locate \
+        something (e.g. an image or canvas UI), call look_at_screen to get a visual \
+        description. Keep going until the user's request is done, then call done \
+        with a short summary. Be concise.
         """
 
     static let tools: [AgentTool] = [
@@ -196,6 +234,12 @@ final class BrowserAgentViewModel: ObservableObject {
                         "label": ["type": "string", "description": "Human-readable label of the element."],
                     ],
                     "required": ["ref"],
+                  ]),
+        AgentTool(name: "look_at_screen",
+                  description: "Take a screenshot and get a visual description from a vision model. Use when the element list is insufficient.",
+                  parameters: [
+                    "type": "object",
+                    "properties": ["question": ["type": "string", "description": "What to look for or describe."]],
                   ]),
         AgentTool(name: "done", description: "Signal the task is complete.",
                   parameters: [

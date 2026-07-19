@@ -61,6 +61,23 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
         return (await run(js) as? String) == "ok"
     }
 
+    /// Captures the current view as a base64-encoded PNG for the vision model.
+    func snapshot() async -> String? {
+        let config = WKSnapshotConfiguration()
+        return await withCheckedContinuation { continuation in
+            webView.takeSnapshot(with: config) { image, _ in
+                guard let image,
+                      let tiff = image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let png = rep.representation(using: .png, properties: [:]) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: png.base64EncodedString())
+            }
+        }
+    }
+
     /// Waits until the page finishes loading (bounded).
     func waitUntilIdle(timeout: TimeInterval = 8) async {
         try? await Task.sleep(nanoseconds: 300_000_000)   // let navigation begin

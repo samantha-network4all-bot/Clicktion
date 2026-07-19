@@ -191,6 +191,18 @@ final class ServiceClient {
         return try await post("/api/agent/turn", body: Body(messages: messages, tools: tools))
     }
 
+    func agentVision(image: String, question: String, modelID: String?) async throws -> String {
+        struct Body: Encodable {
+            let image: String
+            let question: String
+            let model_id: String?
+        }
+        struct Reply: Decodable { let text: String }
+        let reply: Reply = try await post("/api/agent/vision",
+                                          body: Body(image: image, question: question, model_id: modelID))
+        return reply.text
+    }
+
     // MARK: - Helpers
 
     private func get<T: Decodable>(_ path: String) async throws -> T {

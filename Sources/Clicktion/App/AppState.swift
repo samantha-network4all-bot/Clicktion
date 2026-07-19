@@ -147,6 +147,15 @@ final class AppState: ObservableObject {
         HotKeyCombo(keyCode: dictationHotKeyCode, modifiers: dictationHotKeyModifiers)
     }
 
+    // MARK: - Browser agent
+
+    /// Configured model id used for the browser agent's `look_at_screen` vision
+    /// lookups. Empty → use the local default model.
+    @Published var browserVisionModelID: String =
+        UserDefaults.standard.string(forKey: "browserVisionModelID") ?? "" {
+        didSet { UserDefaults.standard.set(browserVisionModelID, forKey: "browserVisionModelID") }
+    }
+
     /// "toggle" (press to start, press again to stop) or "hold" (push-to-hold).
     @Published var dictationHotKeyMode: String = {
         let v = UserDefaults.standard.string(forKey: "dictationHotKeyMode") ?? "toggle"
