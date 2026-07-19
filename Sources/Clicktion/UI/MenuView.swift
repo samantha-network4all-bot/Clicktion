@@ -108,6 +108,9 @@ struct MenuView: View {
                 openArchive()
             }
             Divider().padding(.vertical, 4)
+            MenuAction(label: "Request Feature…", icon: "plus.bubble") {
+                FeatureRequestWindow.shared.show()
+            }
             MenuAction(label: "Settings…", icon: "gearshape") {
                 SettingsWindow.shared.show()
             }
