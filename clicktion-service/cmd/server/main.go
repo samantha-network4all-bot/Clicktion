@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/clicktion/service/internal/api"
+	"github.com/clicktion/service/internal/applog"
 	"github.com/clicktion/service/internal/db"
 )
 
@@ -14,6 +15,7 @@ func main() {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		log.Fatalf("create data dir: %v", err)
 	}
+	applog.Init(dataDir)
 
 	database, err := db.Open(dataDir + "/clicktion.db")
 	if err != nil {

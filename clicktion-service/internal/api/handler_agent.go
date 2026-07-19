@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/clicktion/service/internal/llm"
@@ -46,6 +47,7 @@ func (h *handler) agentTurn(w http.ResponseWriter, r *http.Request) {
 	}
 	turn, err := client.CompleteWithTools(r.Context(), body.Messages, body.Tools)
 	if err != nil {
+		log.Printf("agent/turn failed (model_id=%q, %d messages): %v", body.ModelID, len(body.Messages), err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
@@ -83,6 +85,7 @@ func (h *handler) agentVision(w http.ResponseWriter, r *http.Request) {
 
 	text, err := client.CompleteVision(r.Context(), question, body.Image, 512)
 	if err != nil {
+		log.Printf("agent/vision failed (model_id=%q): %v", body.ModelID, err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
