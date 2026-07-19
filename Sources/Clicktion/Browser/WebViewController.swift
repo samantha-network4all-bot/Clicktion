@@ -170,14 +170,17 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
           els.forEach(el => {
             const r = el.getBoundingClientRect();
             if (r.width === 0 || r.height === 0) return;
+            const img = el.querySelector ? el.querySelector('img') : null;
+            const label = (el.getAttribute('aria-label') || el.getAttribute('title') ||
+              el.placeholder || el.name || (el.innerText || '').trim() ||
+              (img && img.getAttribute('alt')) || el.id || el.value || '')
+              .toString().trim().slice(0, 80);
+            if (!label) return;   // skip elements the model can't meaningfully reference
             const ref = 'clik' + (i++);
             el.setAttribute('data-clik-ref', ref);
-            const label = (el.getAttribute('aria-label') || el.placeholder ||
-              el.name || el.id || (el.innerText || '').trim() || el.value || '')
-              .toString().slice(0, 80);
             out.push({ ref, tag: el.tagName.toLowerCase(), type: el.type || '', label });
           });
-          return JSON.stringify(out.slice(0, 80));
+          return JSON.stringify(out.slice(0, 150));
         })();
         """
 }
