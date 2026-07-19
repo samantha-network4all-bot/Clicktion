@@ -64,6 +64,9 @@ func apiRoutes(h *handler) http.Handler {
 	// Storage
 	mux.HandleFunc("POST /storage/prune", h.pruneStorage)
 
+	// Browser agent (tool-enabled LLM turn)
+	mux.HandleFunc("POST /agent/turn", h.agentTurn)
+
 	return mux
 }
 

@@ -19,7 +19,7 @@ final class SpeechManager: ObservableObject {
     }
 
     /// Where a completed transcription goes.
-    private enum DictationMode { case activeApp, pad }
+    private enum DictationMode { case activeApp, pad, agent }
     private var dictationMode: DictationMode = .activeApp
 
     /// True while the Dictation Pad's STT switch is on (continuous listening).
@@ -32,6 +32,8 @@ final class SpeechManager: ObservableObject {
     var onPadPartial: ((String) -> Void)?
     /// Reports a recoverable error to the Dictation Pad (shown inline).
     var onPadError: ((String) -> Void)?
+    /// Delivers a finished spoken instruction to the browser agent.
+    var onAgentInstruction: ((String) -> Void)?
 
     private var hotKey: HotKey?
     private var pushMonitor: PushToHoldMonitor?
@@ -256,6 +258,14 @@ final class SpeechManager: ObservableObject {
         }
     }
 
+    /// One-shot spoken instruction for the browser agent: records until the
+    /// speaker pauses, then delivers the transcript via `onInstruction`.
+    func startAgentDictation(onInstruction: @escaping (String) -> Void) {
+        guard case .idle = state else { return }
+        onAgentInstruction = onInstruction
+        beginDictation(mode: .agent)
+    }
+
     private func beginDictation(mode: DictationMode) {
         guard case .idle = state else { return }
         dictationMode = mode
@@ -335,6 +345,10 @@ final class SpeechManager: ObservableObject {
                 case .pad:
                     // Final segment when the switch is turned off.
                     if !trimmed.isEmpty { onPadTranscription?(trimmed) }
+                    state = .idle
+                    dictationMode = .activeApp
+                case .agent:
+                    if !trimmed.isEmpty { onAgentInstruction?(text) }
                     state = .idle
                     dictationMode = .activeApp
                 case .activeApp:

@@ -181,6 +181,16 @@ final class ServiceClient {
         let _: EmptyResponse = try await post("/api/jobs/\(jobID)/messages", body: Body(message: message))
     }
 
+    // MARK: - Browser agent
+
+    func agentTurn(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentTurn {
+        struct Body: Encodable {
+            let messages: [AgentMessage]
+            let tools: [AgentTool]
+        }
+        return try await post("/api/agent/turn", body: Body(messages: messages, tools: tools))
+    }
+
     // MARK: - Helpers
 
     private func get<T: Decodable>(_ path: String) async throws -> T {

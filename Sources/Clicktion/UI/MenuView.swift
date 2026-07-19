@@ -13,6 +13,7 @@ struct MenuView: View {
             Divider()
             captureButton
             dictationPadButton
+            browserAgentButton
             todoButton
             Divider()
             menuActions
@@ -77,6 +78,17 @@ struct MenuView: View {
     private var dictationPadButton: some View {
         Button(action: { DictationPadWindow.shared.show() }) {
             Label("Dictation Pad", systemImage: "note.text")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    private var browserAgentButton: some View {
+        Button(action: { BrowserAgentWindow.shared.show() }) {
+            Label("Browser Assistant", systemImage: "globe")
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
