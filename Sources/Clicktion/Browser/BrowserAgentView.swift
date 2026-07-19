@@ -7,25 +7,25 @@ struct BrowserAgentView: View {
     @State private var instruction = ""
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                browser
-                    .frame(width: geo.size.width * 0.75)
-                Divider()
-                sidePanel
-                    .frame(width: geo.size.width * 0.25)
-            }
+        // HSplitView (NSSplitView) hosts the WKWebView correctly and keeps the
+        // URL field / side panel clickable next to the AppKit web view.
+        HSplitView {
+            browser
+                .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
+            sidePanel
+                .frame(minWidth: 280, idealWidth: 320, maxWidth: 460, maxHeight: .infinity)
         }
         .frame(minWidth: 900, minHeight: 560)
     }
 
-    // MARK: - Browser (left 3/4)
+    // MARK: - Browser (left)
 
     private var browser: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 TextField("Enter a URL", text: $vm.urlText, onCommit: vm.openURL)
                     .textFieldStyle(.roundedBorder)
+                Button("Go", action: vm.openURL)
                 if vm.web.isLoading {
                     ProgressView().controlSize(.small)
                 }
@@ -33,6 +33,7 @@ struct BrowserAgentView: View {
             .padding(8)
             Divider()
             WebViewRepresentable(controller: vm.web)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
