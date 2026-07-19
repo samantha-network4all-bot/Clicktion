@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/clicktion/service/internal/llm"
@@ -56,8 +57,25 @@ func (h *handler) agentTurn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	log.Printf("agent/turn model=%s messages=%d -> %d tool_call(s) in %dms",
-		modelName, len(body.Messages), len(turn.ToolCalls), ms)
+	if len(turn.ToolCalls) == 0 {
+		preview := turn.Content
+		if len(preview) > 120 {
+			preview = preview[:120]
+		}
+		log.Printf("agent/turn model=%s messages=%d -> no tool calls (text: %q) in %dms",
+			modelName, len(body.Messages), preview, ms)
+	} else {
+		var calls []string
+		for _, tc := range turn.ToolCalls {
+			args := tc.Function.Arguments
+			if len(args) > 100 {
+				args = args[:100]
+			}
+			calls = append(calls, tc.Function.Name+" "+args)
+		}
+		log.Printf("agent/turn model=%s messages=%d -> [%s] in %dms",
+			modelName, len(body.Messages), strings.Join(calls, "; "), ms)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(turn)
