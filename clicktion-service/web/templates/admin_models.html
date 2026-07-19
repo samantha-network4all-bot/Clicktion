@@ -22,6 +22,12 @@
 </div>
 {{end}}
 
+{{if and .BenchID .BenchOK}}
+<div class="flash flash-ok">
+  ⚡ Benchmark: <strong>{{.BenchTPS}} tokens/sec</strong> ({{.BenchTokens}} tokens in {{.BenchMs}}ms)
+</div>
+{{end}}
+
 <div class="section-header">
   <h2>LLM Models</h2>
   <a href="/admin/models/new" class="btn btn-primary">+ Add model</a>
@@ -61,6 +67,9 @@
       <div class="actions">
         <form method="post" action="/admin/models/{{.ID}}/test">
           <button type="submit">Test</button>
+        </form>
+        <form method="post" action="/admin/models/{{.ID}}/benchmark">
+          <button type="submit" title="Generate ~300 words and measure tokens/sec">Benchmark</button>
         </form>
         <a href="/admin/models/{{.ID}}/edit">Edit</a>
         {{if not .IsDefault}}

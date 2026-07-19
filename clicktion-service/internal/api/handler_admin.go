@@ -40,6 +40,8 @@ func (h *handler) serveAdmin(w http.ResponseWriter, r *http.Request) {
 		h.adminModelDelete(w, r, modelID(path, "/delete"))
 	case strings.HasSuffix(path, "/test") && r.Method == http.MethodPost:
 		h.adminModelTest(w, r, modelID(path, "/test"))
+	case strings.HasSuffix(path, "/benchmark") && r.Method == http.MethodPost:
+		h.adminModelBenchmark(w, r, modelID(path, "/benchmark"))
 	case strings.HasSuffix(path, "/setdefault") && r.Method == http.MethodPost:
 		h.adminModelSetDefault(w, r, modelID(path, "/setdefault"))
 	case path == "/models/probe" && r.Method == http.MethodPost:
@@ -89,18 +91,29 @@ type adminModelsData struct {
 	TestOK bool
 	TestMs int
 	TestResp string
+	// Benchmark result (speed test)
+	BenchID     string
+	BenchOK     bool
+	BenchTPS    string
+	BenchTokens int
+	BenchMs     int
 }
 
 func (h *handler) adminModels(w http.ResponseWriter, r *http.Request) {
 	models, _ := h.db.ListModels()
 	q := r.URL.Query()
 	renderTemplate(w, adminModelsTmpl, "admin_models.html", adminModelsData{
-		Models:   models,
-		Msg:      q.Get("msg"),
-		TestID:   q.Get("test_id"),
-		TestOK:   q.Get("test_ok") == "1",
-		TestMs:   atoi(q.Get("test_ms")),
-		TestResp: q.Get("test_resp"),
+		Models:      models,
+		Msg:         q.Get("msg"),
+		TestID:      q.Get("test_id"),
+		TestOK:      q.Get("test_ok") == "1",
+		TestMs:      atoi(q.Get("test_ms")),
+		TestResp:    q.Get("test_resp"),
+		BenchID:     q.Get("bench_id"),
+		BenchOK:     q.Get("bench_ok") == "1",
+		BenchTPS:    q.Get("bench_tps"),
+		BenchTokens: atoi(q.Get("bench_tokens")),
+		BenchMs:     atoi(q.Get("bench_ms")),
 	})
 }
 
@@ -188,6 +201,37 @@ func (h *handler) adminModelTest(w http.ResponseWriter, r *http.Request, id stri
 	}
 	redirect(w, r, fmt.Sprintf("/admin/models?test_id=%s&test_ok=1&test_ms=%d&test_resp=%s",
 		id, ms, urlEncode(resp)))
+}
+
+// adminModelBenchmark measures generation speed by asking for ~300 words and
+// computing tokens/second.
+func (h *handler) adminModelBenchmark(w http.ResponseWriter, r *http.Request, id string) {
+	m, err := h.db.GetModel(id)
+	if err != nil {
+		redirect(w, r, "/admin/models?msg=Model+not+found")
+		return
+	}
+	client := llm.NewClient(m.BaseURL, m.APIKey, m.ModelName)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+
+	prompt := "Write approximately 300 words of continuous prose about the history of computing. Write flowing paragraphs, not lists."
+	res, err := client.Stream(ctx,
+		[]llm.Message{llm.TextMessage(llm.RoleUser, prompt)},
+		llm.StreamOptions{MaxTokens: 500, Temperature: -1},
+		func(string) {})
+	if err != nil {
+		redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=0&msg=%s",
+			id, urlEncode("Benchmark failed: "+err.Error())))
+		return
+	}
+
+	tps := 0.0
+	if res.LatencyMs > 0 {
+		tps = float64(res.CompletionTokens) / (float64(res.LatencyMs) / 1000.0)
+	}
+	redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=1&bench_tps=%s&bench_tokens=%d&bench_ms=%d",
+		id, urlEncode(fmt.Sprintf("%.1f", tps)), res.CompletionTokens, res.LatencyMs))
 }
 
 // adminModelProbe fetches available model IDs from an OpenAI-compatible endpoint.
