@@ -53,8 +53,7 @@ struct DictationPadView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            TextEditor(text: fieldText)
-                .font(.body)
+            DictationTextView(text: fieldText, autoScroll: speech.isPadDictating)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)

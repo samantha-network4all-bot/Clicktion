@@ -108,25 +108,22 @@ final class AppState: ObservableObject {
 
     // MARK: - Parakeet (speech-to-text)
 
-    @Published var parakeetLanguage: String =
-        UserDefaults.standard.string(forKey: "parakeetLanguage") ?? "system" {
+    /// "auto" (English & Dutch, picked by confidence), "nl", or "en".
+    @Published var parakeetLanguage: String = {
+        let v = UserDefaults.standard.string(forKey: "parakeetLanguage") ?? "auto"
+        return ["auto", "nl", "en"].contains(v) ? v : "auto"   // migrate legacy values
+    }() {
         didSet { UserDefaults.standard.set(parakeetLanguage, forKey: "parakeetLanguage") }
     }
 
-    /// Language hint passed to Parakeet (v3 script-aware filtering).
-    /// `nil` means auto-detect: either the user picked "system" and the current
-    /// locale isn't one we map, or they explicitly want auto.
-    var parakeetLanguageHint: String? {
+    /// Candidate language hints for Parakeet. Multiple hints → the engine
+    /// transcribes with each and keeps the highest-confidence result
+    /// (automatic bilingual). A single hint forces that language.
+    var parakeetLanguageHints: [String] {
         switch parakeetLanguage {
-        case "system":
-            // Resolve the system locale to a language code Parakeet understands;
-            // fall back to auto-detect when it's not one we recognise.
-            let code = Locale.current.language.languageCode?.identifier ?? ""
-            return ["nl", "en"].contains(code) ? code : nil
-        case let code where !code.isEmpty:
-            return code
-        default:
-            return nil
+        case "nl": return ["nl"]
+        case "en": return ["en"]
+        default:   return ["nl", "en"]   // "auto"
         }
     }
 

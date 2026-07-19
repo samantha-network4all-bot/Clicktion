@@ -76,26 +76,15 @@ final class DictationPadWindow {
         }
 
         if !TextInserter.copyAndPaste(text, into: previousApp) {
-            showAccessibilityAlert()
-        }
-    }
+            SystemAlert.warn(
+                "Accessibility Access Required",
+                """
+                Clicktion needs Accessibility access to paste text into your previous app. \
+                The text has been copied to the clipboard — you can paste it manually with ⌘V.
 
-    private func showAccessibilityAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Access Required"
-        alert.informativeText = """
-            Clicktion needs Accessibility access to paste text into your previous app. \
-            The text has been copied to the clipboard — you can paste it manually with ⌘V.
-
-            Open System Settings → Privacy & Security → Accessibility and add Clicktion.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "OK")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(
-                URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-            )
+                Open System Settings → Privacy & Security → Accessibility and add Clicktion.
+                """,
+                settingsURL: SystemAlert.PrivacyPane.accessibility)
         }
     }
 }

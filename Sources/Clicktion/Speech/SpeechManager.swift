@@ -3,44 +3,7 @@ import AppKit
 import Carbon
 import os
 
-enum SpeechState: Equatable {
-    case idle
-    case requestingMicPermission
-    case downloadingModel(Double)
-    case listening
-    case transcribing
-    case inserting
-}
-
-protocol ParakeetEngineProtocol: AnyObject {
-    /// Loaded into memory and ready to transcribe.
-    var isLoaded: Bool { get }
-    /// Model weights are present on disk (may or may not be loaded yet).
-    var isDownloaded: Bool { get }
-    func prepare(progress: @Sendable @escaping (Double) -> Void) async throws
-    /// `languageHint` is an ISO code ("nl"/"en") or nil for auto-detect.
-    func transcribe(_ samples: [Float], sampleRate: Double, languageHint: String?) async throws -> String
-    /// Unloads from memory and deletes the cached weights from disk.
-    func removeModel() throws
-}
-
-enum SpeechError: LocalizedError {
-    case micDenied
-    case accessibilityDenied
-    case engineNotReady
-    case transcriptionFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .micDenied: "Microphone access denied"
-        case .accessibilityDenied: "Accessibility access required for text insertion"
-        case .engineNotReady: "Speech engine not loaded"
-        case .transcriptionFailed(let msg): "Transcription failed: \(msg)"
-        }
-    }
-}
-
-    @MainActor
+@MainActor
 final class SpeechManager: ObservableObject {
     static let shared = SpeechManager()
 
@@ -87,6 +50,20 @@ final class SpeechManager: ObservableObject {
     /// Periodically re-transcribes the current segment for live (pseudo-streaming) text.
     private var partialTimer: Task<Void, Never>?
     private let partialInterval: TimeInterval = 0.8
+    /// Winning language of the last committed segment (bilingual auto mode).
+    /// Live partials reuse it to stay cheap and stable between commits.
+    private var lastAutoLanguage: String?
+
+    /// Hints for a committed segment (full set — may trigger bilingual arbitration).
+    private var commitHints: [String] { AppState.shared.parakeetLanguageHints }
+
+    /// Hints for a live partial: reuse the last winning language in bilingual
+    /// mode so partials stay single-pass; forced languages pass through as-is.
+    private var partialHints: [String] {
+        let hints = AppState.shared.parakeetLanguageHints
+        guard hints.count > 1 else { return hints }        // forced language
+        return lastAutoLanguage.map { [$0] } ?? []          // [] = plain auto-detect
+    }
 
     private init() {}
 
@@ -241,12 +218,14 @@ final class SpeechManager: ObservableObject {
         stopAudioEngine()
 
         let samples = sampleBuffer.drain()
-        let languageHint = AppState.shared.parakeetLanguageHint
+        let hints = commitHints
         let mode = dictationMode
 
         Task {
             do {
-                let text = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHint: languageHint) ?? ""
+                let result = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHints: hints)
+                let text = result?.text ?? ""
+                if let code = result?.languageCode { lastAutoLanguage = code }
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 switch mode {
@@ -289,13 +268,14 @@ final class SpeechManager: ObservableObject {
         isCommittingSegment = true
         segmentGeneration += 1            // invalidate any in-flight partials for this segment
         let samples = sampleBuffer.drain()
-        let languageHint = AppState.shared.parakeetLanguageHint
+        let hints = commitHints
 
         Task {
             defer { isCommittingSegment = false }
             do {
-                let text = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHint: languageHint) ?? ""
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let result = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHints: hints)
+                if let code = result?.languageCode { lastAutoLanguage = code }
+                let trimmed = (result?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { onPadTranscription?(trimmed) }
             } catch {
                 log.error("segment transcription failed: \(error.localizedDescription)")
@@ -332,13 +312,13 @@ final class SpeechManager: ObservableObject {
         isTranscribingPartial = true
         let gen = segmentGeneration
         let samples = sampleBuffer.snapshot()
-        let languageHint = AppState.shared.parakeetLanguageHint
+        let hints = partialHints
 
         Task {
             defer { isTranscribingPartial = false }
             do {
-                let text = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHint: languageHint) ?? ""
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let result = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHints: hints)
+                let trimmed = (result?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 // Drop if this segment was committed while we were transcribing.
                 if gen == segmentGeneration, isPadDictating { onPadPartial?(trimmed) }
             } catch {
@@ -492,101 +472,40 @@ final class SpeechManager: ObservableObject {
             try parakeet?.removeModel()
             modelDownloaded = false
         } catch {
-            let alert = NSAlert()
-            alert.messageText = "Failed to Remove Parakeet Model"
-            alert.informativeText = error.localizedDescription
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+            SystemAlert.warn("Failed to Remove Parakeet Model", error.localizedDescription)
         }
     }
 
     // MARK: - Alerts
 
     private func showMicPermissionAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Microphone Access Required"
-        alert.informativeText = """
+        SystemAlert.warn(
+            "Microphone Access Required",
+            """
             Clicktion needs microphone access for the Parakeet dictation feature.
 
             Open System Settings → Privacy & Security → Microphone \
             and enable Clicktion, then try again.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Microphone")!)
-        }
+            """,
+            settingsURL: SystemAlert.PrivacyPane.microphone)
     }
 
     private func showAccessibilityAlert() {
-        let alert = NSAlert()
-        alert.messageText = "Accessibility Access Required"
-        alert.informativeText = """
+        SystemAlert.warn(
+            "Accessibility Access Required",
+            """
             Clicktion needs Accessibility access to insert transcribed text into your active application.
 
-            Open System Settings → Privacy & Security → Accessibility \
-            and add Clicktion.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
-        }
+            Open System Settings → Privacy & Security → Accessibility and add Clicktion.
+            """,
+            settingsURL: SystemAlert.PrivacyPane.accessibility)
     }
 
     private func showModelDownloadError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Failed to Download Parakeet Model"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        SystemAlert.warn("Failed to Download Parakeet Model", error.localizedDescription)
     }
 
     private func showTranscriptionError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Transcription Failed"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        SystemAlert.warn("Transcription Failed", error.localizedDescription)
     }
-}
-
-/// Lock-protected sample store. The audio tap appends from a real-time thread
-/// while the main actor drains it, so all access is serialized behind a lock.
-final class AudioSampleBuffer: @unchecked Sendable {
-    private let lock = OSAllocatedUnfairLock()
-    private var samples = [Float]()
-
-    var count: Int { lock.withLock { samples.count } }
-
-    /// A copy of the accumulated samples without clearing them (for live partials).
-    func snapshot() -> [Float] { lock.withLock { samples } }
-
-    func append(_ new: [Float]) {
-        lock.withLock { samples.append(contentsOf: new) }
-    }
-
-    func drain() -> [Float] {
-        lock.withLock {
-            let out = samples
-            samples.removeAll(keepingCapacity: true)
-            return out
-        }
-    }
-
-    func reset() {
-        lock.withLock { samples.removeAll(keepingCapacity: true) }
-    }
-}
-
-/// Tracks the previous silence state. Touched only from the serial audio-tap
-/// thread, so no locking is needed; the class exists so the tap closure can
-/// mutate it by reference.
-final class SilenceState: @unchecked Sendable {
-    var wasSilence = false
 }

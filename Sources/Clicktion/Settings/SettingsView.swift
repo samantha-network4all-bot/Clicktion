@@ -418,17 +418,18 @@ private struct ParakeetTab: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Language").font(.subheadline).fontWeight(.medium)
-                Text("Parakeet auto-detects the language. Pin to a specific language if needed.")
+                Text("Auto transcribes each sentence as both English and Dutch and keeps the more confident one. Pin a language to force it.")
                     .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Picker("", selection: $appState.parakeetLanguage) {
-                Text("Auto (System)").tag("system")
+                Text("Auto (English & Dutch)").tag("auto")
                 Text("Dutch").tag("nl")
                 Text("English").tag("en")
             }
             .labelsHidden()
-            .frame(width: 160)
+            .frame(width: 190)
         }
     }
 
