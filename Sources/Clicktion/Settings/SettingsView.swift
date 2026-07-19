@@ -419,19 +419,40 @@ private struct ParakeetTab: View {
     }
 
     private var hotkeyRow: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Shortcut").font(.subheadline).fontWeight(.medium)
-                Text("Click and press a key combination (with at least one modifier).")
-                    .font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Shortcut").font(.subheadline).fontWeight(.medium)
+                    Text("Click and press a key combination (with at least one modifier).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                HotkeyRecorderView(combo: appState.dictationHotKey) { newCombo in
+                    appState.dictationHotKeyCode = newCombo.keyCode
+                    appState.dictationHotKeyModifiers = newCombo.modifiers
+                    SpeechManager.shared.updateHotKey()
+                }
+                .frame(width: 140, height: 28)
             }
-            Spacer()
-            HotkeyRecorderView(combo: appState.dictationHotKey) { newCombo in
-                appState.dictationHotKeyCode = newCombo.keyCode
-                appState.dictationHotKeyModifiers = newCombo.modifiers
-                SpeechManager.shared.updateHotKey()
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mode").font(.subheadline).fontWeight(.medium)
+                    Text("Toggle: press to start, press again to stop. Hold: dictate while held (needs Accessibility).")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Picker("", selection: $appState.dictationHotKeyMode) {
+                    Text("Toggle").tag("toggle")
+                    Text("Push to hold").tag("hold")
+                }
+                .labelsHidden()
+                .frame(width: 140)
+                .onChange(of: appState.dictationHotKeyMode) { _, _ in
+                    SpeechManager.shared.updateHotKey()
+                }
             }
-            .frame(width: 140, height: 28)
         }
     }
 

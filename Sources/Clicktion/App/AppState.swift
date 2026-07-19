@@ -147,6 +147,14 @@ final class AppState: ObservableObject {
         HotKeyCombo(keyCode: dictationHotKeyCode, modifiers: dictationHotKeyModifiers)
     }
 
+    /// "toggle" (press to start, press again to stop) or "hold" (push-to-hold).
+    @Published var dictationHotKeyMode: String = {
+        let v = UserDefaults.standard.string(forKey: "dictationHotKeyMode") ?? "toggle"
+        return ["toggle", "hold"].contains(v) ? v : "toggle"
+    }() {
+        didSet { UserDefaults.standard.set(dictationHotKeyMode, forKey: "dictationHotKeyMode") }
+    }
+
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
     // code-signature ACL prompts that Keychain triggers for ad-hoc signed binaries.
     // The key only authenticates to the local clicktion-service — not a user credential.

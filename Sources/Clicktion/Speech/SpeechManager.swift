@@ -34,6 +34,11 @@ final class SpeechManager: ObservableObject {
     var onPadError: ((String) -> Void)?
 
     private var hotKey: HotKey?
+    private var pushMonitor: PushToHoldMonitor?
+    /// True during a push-to-hold session (stops only on key release, not on silence).
+    private var isPushToHold = false
+    /// Whether the push-to-hold key is currently held (guards the async start path).
+    private var pushKeyHeld = false
     private var audioEngine: AVAudioEngine?
     private var parakeet: ParakeetEngineProtocol?
     private let sampleBuffer = AudioSampleBuffer()
@@ -126,6 +131,7 @@ final class SpeechManager: ObservableObject {
 
     func teardown() {
         hotKey?.unregister()
+        pushMonitor?.stop()
         stopPartialLoop()
         stopVadLoop()
         stopAudioEngine()
@@ -148,7 +154,40 @@ final class SpeechManager: ObservableObject {
     // MARK: - HotKey
 
     private func registerHotKey() {
+        hotKey?.unregister()
+        hotKey = nil
+        pushMonitor?.stop()
+        pushMonitor = nil
+
         let combo = AppState.shared.dictationHotKey
+
+        if AppState.shared.dictationHotKeyMode == "hold" {
+            let monitor = PushToHoldMonitor(
+                keyCode: combo.keyCode,
+                carbonModifiers: combo.modifiers,
+                onPress: { [weak self] in Task { @MainActor [weak self] in self?.pushToHoldPressed() } },
+                onRelease: { [weak self] in Task { @MainActor [weak self] in self?.pushToHoldReleased() } }
+            )
+            if monitor.start() {
+                pushMonitor = monitor
+            } else {
+                // No Accessibility → the tap gets no events. Fall back to toggle
+                // and tell the user how to enable push-to-hold.
+                SystemAlert.warn(
+                    "Push-to-hold needs Accessibility",
+                    """
+                    Enable Clicktion under System Settings → Privacy & Security → \
+                    Accessibility to use push-to-hold. Falling back to toggle mode for now.
+                    """,
+                    settingsURL: SystemAlert.PrivacyPane.accessibility)
+                registerCarbonHotKey(combo)
+            }
+        } else {
+            registerCarbonHotKey(combo)
+        }
+    }
+
+    private func registerCarbonHotKey(_ combo: HotKeyCombo) {
         hotKey = HotKey(keyCode: combo.keyCode, modifiers: combo.modifiers) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.toggle()
@@ -158,8 +197,27 @@ final class SpeechManager: ObservableObject {
 
     /// Re-registers the global hotkey after the user changes it in Settings.
     func updateHotKey() {
-        hotKey?.unregister()
         registerHotKey()
+    }
+
+    // MARK: - Push-to-hold
+
+    private func pushToHoldPressed() {
+        guard case .idle = state else { return }
+        isPushToHold = true
+        pushKeyHeld = true
+        beginDictation(mode: .activeApp)
+    }
+
+    private func pushToHoldReleased() {
+        pushKeyHeld = false
+        guard isPushToHold else { return }
+        if case .listening = state {
+            stop()               // transcribe + paste what was said while held
+        }
+        // If we're still requesting permission / downloading, the beginDictation
+        // task aborts via the `pushKeyHeld` check before it starts listening.
+        isPushToHold = false
     }
 
     // MARK: - Toggle
@@ -239,6 +297,12 @@ final class SpeechManager: ObservableObject {
             // User may have switched the pad off during download.
             if mode == .pad && !isPadDictating {
                 state = .idle
+                return
+            }
+            // Push-to-hold key was released before we were ready to listen.
+            if isPushToHold && !pushKeyHeld {
+                state = .idle
+                isPushToHold = false
                 return
             }
 
@@ -423,7 +487,8 @@ final class SpeechManager: ObservableObject {
         do {
             try engine.start()
             state = .listening
-            if useVad { startVadLoop() }
+            // Push-to-hold records until release, so no auto-stop segmentation.
+            if useVad && !isPushToHold { startVadLoop() }
             if dictationMode == .pad { startPartialLoop() }
         } catch {
             state = .idle
@@ -475,6 +540,7 @@ final class SpeechManager: ObservableObject {
     /// A speech segment ended (VAD event or RMS-timer fallback).
     private func handleSpeechEnd() {
         guard case .listening = state else { return }
+        if isPushToHold { return }   // hold sessions stop only on key release
         if dictationMode == .pad {
             commitPadSegment()   // continuous: transcribe segment, keep recording
         } else {
