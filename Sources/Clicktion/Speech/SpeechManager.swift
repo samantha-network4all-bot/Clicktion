@@ -30,6 +30,8 @@ final class SpeechManager: ObservableObject {
     var onPadTranscription: ((String) -> Void)?
     /// Delivers the live, in-progress transcript of the current segment.
     var onPadPartial: ((String) -> Void)?
+    /// Reports a recoverable error to the Dictation Pad (shown inline).
+    var onPadError: ((String) -> Void)?
 
     private var hotKey: HotKey?
     private var audioEngine: AVAudioEngine?
@@ -284,6 +286,7 @@ final class SpeechManager: ObservableObject {
                 if mode == .pad {
                     isPadDictating = false
                     dictationMode = .activeApp
+                    onPadError?("Transcription failed: \(error.localizedDescription)")
                 } else {
                     showTranscriptionError(error)
                 }
@@ -316,6 +319,7 @@ final class SpeechManager: ObservableObject {
                 if !trimmed.isEmpty { onPadTranscription?(trimmed) }
             } catch {
                 log.error("segment transcription failed: \(error.localizedDescription)")
+                onPadError?("Couldn't transcribe that part: \(error.localizedDescription)")
             }
         }
     }
@@ -423,6 +427,11 @@ final class SpeechManager: ObservableObject {
             if dictationMode == .pad { startPartialLoop() }
         } catch {
             state = .idle
+            log.error("audio engine failed to start: \(error.localizedDescription)")
+            if dictationMode == .pad {
+                isPadDictating = false
+                onPadError?("Couldn't start the microphone: \(error.localizedDescription)")
+            }
         }
     }
 

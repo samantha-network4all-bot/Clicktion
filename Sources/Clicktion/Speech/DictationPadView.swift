@@ -6,6 +6,10 @@ final class DictationPadViewModel: ObservableObject {
     @Published var committed: String = ""
     /// Live, in-progress transcript of the current segment (not yet committed).
     @Published var partial: String = ""
+    /// A transient error banner shown inline (auto-dismisses).
+    @Published var error: String?
+
+    private var errorClearTask: Task<Void, Never>?
 
     /// Appends a finished dictation segment and clears the live partial.
     func appendFinal(_ segment: String) {
@@ -14,6 +18,21 @@ final class DictationPadViewModel: ObservableObject {
     }
 
     func setPartial(_ p: String) { partial = p }
+
+    func showError(_ message: String) {
+        error = message
+        errorClearTask?.cancel()
+        errorClearTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.error = nil
+        }
+    }
+
+    func clearError() {
+        errorClearTask?.cancel()
+        error = nil
+    }
 
     func clear() {
         committed = ""
@@ -60,6 +79,10 @@ struct DictationPadView: View {
                         .stroke(Color(nsColor: .separatorColor))
                 )
 
+            if let error = vm.error {
+                errorBanner(error)
+            }
+
             footer
         }
         .padding(16)
@@ -99,6 +122,26 @@ struct DictationPadView: View {
         case .idle, .inserting:
             EmptyView()
         }
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Spacer()
+            Button { vm.clearError() } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .transition(.opacity)
     }
 
     private var footer: some View {

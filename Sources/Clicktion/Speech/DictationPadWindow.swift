@@ -32,6 +32,9 @@ final class DictationPadWindow {
         SpeechManager.shared.onPadPartial = { [weak self] partial in
             self?.vm.setPartial(partial)
         }
+        SpeechManager.shared.onPadError = { [weak self] message in
+            self?.vm.showError(message)
+        }
 
         let view = DictationPadView(vm: vm) { [weak self] text in
             self?.copyAndPaste(text)
@@ -57,6 +60,7 @@ final class DictationPadWindow {
                 SpeechManager.shared.setPadDictating(false)
                 SpeechManager.shared.onPadTranscription = nil
                 SpeechManager.shared.onPadPartial = nil
+                SpeechManager.shared.onPadError = nil
             }
         }
 
