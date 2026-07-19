@@ -20,9 +20,11 @@ type Client struct {
 
 func NewClient(baseURL, apiKey, modelName string) *Client {
 	return &Client{
-		BaseURL:   strings.TrimRight(baseURL, "/"),
-		APIKey:    apiKey,
-		ModelName: modelName,
+		// Trim surrounding whitespace (a stray space/tab pasted into the model
+		// form otherwise produces an unparseable URL) before the trailing slash.
+		BaseURL:   strings.TrimRight(strings.TrimSpace(baseURL), "/"),
+		APIKey:    strings.TrimSpace(apiKey),
+		ModelName: strings.TrimSpace(modelName),
 		HTTP:      &http.Client{Timeout: 120 * time.Second},
 	}
 }

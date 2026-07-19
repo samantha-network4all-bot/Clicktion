@@ -297,10 +297,10 @@ func modelFromForm(r *http.Request) db.Model {
 	r.ParseForm()
 	fo := atoi(r.FormValue("fallback_order"))
 	m := db.Model{
-		Name:          r.FormValue("name"),
-		BaseURL:       r.FormValue("base_url"),
-		APIKey:        r.FormValue("api_key"),
-		ModelName:     r.FormValue("model_name"),
+		Name:          strings.TrimSpace(r.FormValue("name")),
+		BaseURL:       strings.TrimSpace(r.FormValue("base_url")),
+		APIKey:        strings.TrimSpace(r.FormValue("api_key")),
+		ModelName:     strings.TrimSpace(r.FormValue("model_name")),
 		IsDefault:     r.FormValue("is_default") == "on",
 		FallbackOrder: fo,
 	}
