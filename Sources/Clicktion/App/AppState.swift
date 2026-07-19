@@ -156,6 +156,12 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(browserVisionModelID, forKey: "browserVisionModelID") }
     }
 
+    /// Automatically click common cookie-consent "accept" buttons after a page loads.
+    @Published var browserAutoAcceptCookies: Bool =
+        UserDefaults.standard.bool(forKey: "browserAutoAcceptCookies") {
+        didSet { UserDefaults.standard.set(browserAutoAcceptCookies, forKey: "browserAutoAcceptCookies") }
+    }
+
     /// "toggle" (press to start, press again to stop) or "hold" (push-to-hold).
     @Published var dictationHotKeyMode: String = {
         let v = UserDefaults.standard.string(forKey: "dictationHotKeyMode") ?? "toggle"

@@ -103,6 +103,18 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         isLoading = false
         currentURL = webView.url?.absoluteString ?? ""
+        if AppState.shared.browserAutoAcceptCookies {
+            // Banners often render slightly after load, so give it a moment.
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                _ = await run(Self.acceptCookiesJS)
+            }
+        }
+    }
+
+    /// Best-effort auto-accept of cookie-consent banners.
+    func acceptCookies() async {
+        _ = await run(Self.acceptCookiesJS)
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         isLoading = false
@@ -112,6 +124,42 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
     }
 
     // MARK: - JS
+
+    // Clicks a cookie-consent "accept" button: known CMP selectors first, then a
+    // conservative text match on visible buttons/links.
+    private static let acceptCookiesJS = """
+        (function() {
+          const sels = [
+            '#onetrust-accept-btn-handler',
+            '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+            '#CybotCookiebotDialogBodyButtonAccept',
+            '.fc-cta-consent', '.fc-button.fc-cta-consent',
+            'button[aria-label*="accept" i]',
+            '[data-testid*="accept-all" i]', '[data-testid*="accept" i]'
+          ];
+          for (const s of sels) {
+            const el = document.querySelector(s);
+            if (el) { el.click(); return 'cmp'; }
+          }
+          const exact = ['accept','agree','i agree','ok','allow all','akkoord',
+            'accepteren','alles toestaan','got it','ik ga akkoord','allow cookies'];
+          const contains = ['accept all','accept cookies','alles accepteren',
+            'allow all cookies','agree and close','accepteer alles'];
+          const nodes = document.querySelectorAll(
+            'button, a, [role=button], input[type=button], input[type=submit]');
+          for (const n of nodes) {
+            const t = ((n.innerText || n.value || '') + '').trim().toLowerCase();
+            if (!t || t.length > 40) continue;
+            const r = n.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) continue;
+            if (exact.includes(t) || contains.some(c => t.includes(c))) {
+              n.click();
+              return 'text:' + t;
+            }
+          }
+          return 'none';
+        })();
+        """
 
     private static let extractJS = """
         (function() {
