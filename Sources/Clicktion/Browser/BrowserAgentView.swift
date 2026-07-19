@@ -105,6 +105,8 @@ struct BrowserAgentView: View {
 
                 if vm.isBenchmarking {
                     ProgressView().controlSize(.small)
+                    Button("Stop", role: .destructive) { vm.stop() }
+                        .font(.caption)
                 } else if !vm.benchmarkResults.isEmpty {
                     Button("Score \(vm.benchmarkScore)/\(vm.benchmarkResults.count)") {
                         showBenchmark = true
@@ -214,14 +216,20 @@ struct BrowserAgentView: View {
                 }
                 .tint(speech.isAgentDictating ? .red : nil)
 
-                if vm.isRunning {
+                if vm.isRunning || vm.isBenchmarking {
                     Button(role: .destructive, action: vm.stop) {
                         Label("Stop", systemImage: "stop.fill")
                     }
                 }
             }
 
-            if vm.isRunning {
+            if vm.isBenchmarking {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(vm.benchmarkProgress).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                }
+            } else if vm.isRunning {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
                     Text(pendingLabel).font(.caption).foregroundStyle(.secondary)
