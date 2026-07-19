@@ -7,8 +7,13 @@ final class ServiceManager {
     private let serviceURL = URL(string: "http://localhost:8080")!
 
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        binaryPath = appSupport.appendingPathComponent("Clicktion/clicktion-service").path
+        let bundleResource = Bundle.main.url(forResource: "clicktion-service", withExtension: nil)
+        if let bundleResource {
+            binaryPath = bundleResource.path
+        } else {
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            binaryPath = appSupport.appendingPathComponent("Clicktion/clicktion-service").path
+        }
     }
 
     func start() {

@@ -13,9 +13,14 @@ clicktion-service/clicktion-service
 # macOS
 .DS_Store
 
-# App bundle — only track Info.plist, not the compiled binary or code signature
+# App bundle — only track Info.plist, not the compiled binary, bundled service,
+# or code signature
 Clicktion.app/Contents/MacOS/
+Clicktion.app/Contents/Resources/
 Clicktion.app/Contents/_CodeSignature/
+
+# Distribution output (make dist)
+/Build/
 
 # Runtime data (user-specific, not source)
 *.db

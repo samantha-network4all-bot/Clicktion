@@ -35,6 +35,9 @@ install-skills:
 
 SUPPORT_DIR      := $(HOME)/Library/Application\ Support/Clicktion
 APP_BUNDLE       := Clicktion.app/Contents/MacOS/Clicktion
+# The Go service ships inside the app bundle; ServiceManager launches it from
+# here (falling back to Application Support for older installs).
+SERVICE_RESOURCE := Clicktion.app/Contents/Resources/clicktion-service
 
 # Code-signing identity. Defaults to ad-hoc ("-") so the project builds
 # without any developer cert. To use your own Apple Developer identity,
@@ -51,14 +54,35 @@ dev: go-build swift-release bundle install-skills
 bundle: swift-release go-build
 	mkdir -p Clicktion.app/Contents/MacOS Clicktion.app/Contents/Resources
 	cp .build/release/Clicktion $(APP_BUNDLE)
-	cp clicktion-service/clicktion-service $(SUPPORT_DIR)/clicktion-service.new
-	mv -f $(SUPPORT_DIR)/clicktion-service.new $(SUPPORT_DIR)/clicktion-service
+	cp $(SERVICE_BIN) $(SERVICE_RESOURCE)
+	# Sign the nested service first, then the app (hardened runtime rejects
+	# unsigned nested executables).
+	codesign --force --sign "$(SIGNING_IDENTITY)" --options runtime $(SERVICE_RESOURCE)
 	codesign --force --sign "$(SIGNING_IDENTITY)" --entitlements Clicktion.entitlements --options runtime Clicktion.app
 
 install-skills:
 	mkdir -p "$(SUPPORT_DIR)/skills" "$(SUPPORT_DIR)/captures"
 	cp skills/*.md skills/*.json "$(SUPPORT_DIR)/skills/"
 
+DIST_SIGNING ?= -
+
+dist: swift-release go-build
+	rm -rf Build
+	mkdir -p Build/Clicktion.app/Contents/MacOS Build/Clicktion.app/Contents/Resources
+	cp .build/release/Clicktion Build/Clicktion.app/Contents/MacOS/Clicktion
+	cp $(SERVICE_BIN) Build/Clicktion.app/Contents/Resources/clicktion-service
+	cp Clicktion.app/Contents/Info.plist Build/Clicktion.app/Contents/Info.plist
+	cp -r skills Build/Clicktion.app/Contents/Resources/skills 2>/dev/null || true
+	# Sign nested service first, then seal the whole app (with all resources in place).
+	codesign --force --sign "$(DIST_SIGNING)" --options runtime Build/Clicktion.app/Contents/Resources/clicktion-service
+	codesign --force --sign "$(DIST_SIGNING)" --entitlements Clicktion.entitlements --options runtime Build/Clicktion.app
+	rm -f Build/Clicktion.dmg
+	ln -sf /Applications Build/
+	@echo ""
+	@echo "✅ Drag Build/Clicktion.app into Build/Applications to install."
+	@echo "   Or: open Build/"
+
 clean:
 	swift package clean
 	rm -f $(SERVICE_BIN)
+	rm -rf Build
