@@ -12,6 +12,7 @@ struct MenuView: View {
             modelRow
             Divider()
             captureButton
+            dictationPadButton
             todoButton
             Divider()
             menuActions
@@ -66,6 +67,17 @@ struct MenuView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    private var dictationPadButton: some View {
+        Button(action: { DictationPadWindow.shared.show() }) {
+            Label("Dictation Pad", systemImage: "note.text")
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)

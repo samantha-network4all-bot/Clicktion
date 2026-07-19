@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var serviceManager: ServiceManager!
     private var popover: NSPopover!
+    private var speechManager: SpeechManager!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -12,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         serviceManager = ServiceManager()
         serviceManager.start()
 
+        setupSpeech()
         setupStatusItem()
         setupPopover()
 
@@ -24,7 +26,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        speechManager.teardown()
         serviceManager.stop()
+    }
+
+    @MainActor private func setupSpeech() {
+        let engine = ParakeetEngine()
+        speechManager = SpeechManager.shared
+        speechManager.setup(parakeetEngine: engine)
+        speechManager.primeMicrophonePermission()
     }
 
     @MainActor private func setupStatusItem() {

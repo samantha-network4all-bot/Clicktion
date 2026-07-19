@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct SettingsView: View {
@@ -9,6 +10,7 @@ struct SettingsView: View {
                 Text("General").tag(0)
                 Text("Privacy").tag(1)
                 Text("Profiles").tag(2)
+                Text("Parakeet").tag(3)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -22,8 +24,10 @@ struct SettingsView: View {
                 GeneralTab()
             } else if selectedTab == 1 {
                 PrivacyTab()
-            } else {
+            } else if selectedTab == 2 {
                 ProfilesTab()
+            } else {
+                ParakeetTab()
             }
         }
         .frame(width: 640, height: 600)
@@ -351,5 +355,152 @@ private struct ProfileCardView: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor)))
+    }
+}
+
+// MARK: - Parakeet
+
+private struct ParakeetTab: View {
+    @StateObject private var appState = AppState.shared
+    @StateObject private var speechState = SpeechManager.shared
+
+    @State private var micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    @State private var axGranted = AXIsProcessTrusted()
+    @State private var showRemoveConfirm = false
+
+    // Permissions are granted outside the app, so poll to reflect changes live.
+    private let refreshTimer = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Parakeet Dictation").font(.subheadline).fontWeight(.medium)
+                Text("Press ⌥Space to start dictation, press again to stop and paste.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            languageRow
+
+            Divider()
+
+            modelSection
+
+            Divider()
+
+            permissionSection
+
+            Spacer()
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear(perform: refreshPermissions)
+        .onReceive(refreshTimer) { _ in refreshPermissions() }
+        .confirmationDialog(
+            "Remove the Parakeet model?",
+            isPresented: $showRemoveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) { speechState.removeModel() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes the downloaded model (~600 MB). It will be downloaded again next time you dictate.")
+        }
+    }
+
+    private func refreshPermissions() {
+        micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        axGranted = AXIsProcessTrusted()
+    }
+
+    private var languageRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Language").font(.subheadline).fontWeight(.medium)
+                Text("Parakeet auto-detects the language. Pin to a specific language if needed.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Picker("", selection: $appState.parakeetLanguage) {
+                Text("Auto (System)").tag("system")
+                Text("Dutch").tag("nl")
+                Text("English").tag("en")
+            }
+            .labelsHidden()
+            .frame(width: 160)
+        }
+    }
+
+    private var modelSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Model").font(.subheadline).fontWeight(.medium)
+                let status = modelStatusText
+                Text(status).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            modelActionButton
+        }
+    }
+
+    private var modelStatusText: String {
+        if case .downloadingModel(let p) = speechState.state {
+            return "Downloading… \(Int(p * 100))%"
+        }
+        if speechState.modelDownloaded {
+            return "parakeet-tdt-0.6b-v3 (Core ML, ~600 MB)"
+        }
+        return "Not downloaded"
+    }
+
+    @ViewBuilder
+    private var modelActionButton: some View {
+        if case .downloadingModel = speechState.state {
+            ProgressView().progressViewStyle(.circular).controlSize(.small)
+        } else if speechState.modelDownloaded {
+            Button("Remove") { showRemoveConfirm = true }
+                .font(.callout)
+        } else {
+            Button("Download") { speechState.downloadModelFromSettings() }
+                .font(.callout)
+        }
+    }
+
+    private var permissionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Permissions").font(.subheadline).fontWeight(.medium)
+
+            permissionRow(name: "Microphone", granted: micGranted)
+            permissionRow(name: "Accessibility", granted: axGranted)
+        }
+    }
+
+    private func permissionRow(name: String, granted: Bool) -> some View {
+        HStack {
+            Text(name).font(.callout)
+            Spacer()
+            if granted {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                    Text("Granted").font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                Button("Open Settings") {
+                    if name == "Microphone" {
+                        NSWorkspace.shared.open(
+                            URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Microphone")!
+                        )
+                    } else {
+                        NSWorkspace.shared.open(
+                            URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                        )
+                    }
+                }
+                .font(.caption)
+            }
+        }
     }
 }

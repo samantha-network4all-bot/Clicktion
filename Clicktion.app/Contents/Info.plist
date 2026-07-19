@@ -30,5 +30,7 @@
     <string>Clicktion needs local network access to connect to LLM models running on your local network (Ollama, LM Studio, and similar).</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Clicktion uses Apple Events for automation tasks.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Clicktion needs microphone access to transcribe speech when you use the Parakeet dictation feature.</string>
 </dict>
 </plist>

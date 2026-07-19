@@ -106,6 +106,30 @@ final class AppState: ObservableObject {
         return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? "English"
     }()
 
+    // MARK: - Parakeet (speech-to-text)
+
+    @Published var parakeetLanguage: String =
+        UserDefaults.standard.string(forKey: "parakeetLanguage") ?? "system" {
+        didSet { UserDefaults.standard.set(parakeetLanguage, forKey: "parakeetLanguage") }
+    }
+
+    /// Language hint passed to Parakeet (v3 script-aware filtering).
+    /// `nil` means auto-detect: either the user picked "system" and the current
+    /// locale isn't one we map, or they explicitly want auto.
+    var parakeetLanguageHint: String? {
+        switch parakeetLanguage {
+        case "system":
+            // Resolve the system locale to a language code Parakeet understands;
+            // fall back to auto-detect when it's not one we recognise.
+            let code = Locale.current.language.languageCode?.identifier ?? ""
+            return ["nl", "en"].contains(code) ? code : nil
+        case let code where !code.isEmpty:
+            return code
+        default:
+            return nil
+        }
+    }
+
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
     // code-signature ACL prompts that Keychain triggers for ad-hoc signed binaries.
     // The key only authenticates to the local clicktion-service — not a user credential.
