@@ -146,13 +146,18 @@ final class SpeechManager: ObservableObject {
     // MARK: - HotKey
 
     private func registerHotKey() {
-        let keyCode: UInt32 = 49 // kVK_Space
-        let modifiers: UInt32 = UInt32(optionKey) // Option key
-        hotKey = HotKey(keyCode: keyCode, modifiers: modifiers) { [weak self] in
+        let combo = AppState.shared.dictationHotKey
+        hotKey = HotKey(keyCode: combo.keyCode, modifiers: combo.modifiers) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.toggle()
             }
         }
+    }
+
+    /// Re-registers the global hotkey after the user changes it in Settings.
+    func updateHotKey() {
+        hotKey?.unregister()
+        registerHotKey()
     }
 
     // MARK: - Toggle

@@ -127,6 +127,26 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Dictation hotkey
+
+    @Published var dictationHotKeyCode: UInt32 = {
+        if let v = UserDefaults.standard.object(forKey: "dictationHotKeyCode") as? Int { return UInt32(v) }
+        return HotKeyCombo.defaultDictation.keyCode
+    }() {
+        didSet { UserDefaults.standard.set(Int(dictationHotKeyCode), forKey: "dictationHotKeyCode") }
+    }
+
+    @Published var dictationHotKeyModifiers: UInt32 = {
+        if let v = UserDefaults.standard.object(forKey: "dictationHotKeyModifiers") as? Int { return UInt32(v) }
+        return HotKeyCombo.defaultDictation.modifiers
+    }() {
+        didSet { UserDefaults.standard.set(Int(dictationHotKeyModifiers), forKey: "dictationHotKeyModifiers") }
+    }
+
+    var dictationHotKey: HotKeyCombo {
+        HotKeyCombo(keyCode: dictationHotKeyCode, modifiers: dictationHotKeyModifiers)
+    }
+
     // Stored as a plain file rather than Keychain to avoid the per-rebuild
     // code-signature ACL prompts that Keychain triggers for ad-hoc signed binaries.
     // The key only authenticates to the local clicktion-service — not a user credential.

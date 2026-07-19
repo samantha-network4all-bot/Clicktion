@@ -72,7 +72,7 @@ struct DictationPadView: View {
                 get: { speech.isPadDictating },
                 set: { speech.setPadDictating($0) }
             )) {
-                Label("Dictation", systemImage: "mic.fill")
+                Label("Dictation (\(AppState.shared.dictationHotKey.displayString))", systemImage: "mic.fill")
             }
             .toggleStyle(.switch)
 

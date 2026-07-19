@@ -375,9 +375,13 @@ private struct ParakeetTab: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Parakeet Dictation").font(.subheadline).fontWeight(.medium)
-                Text("Press ⌥Space to start dictation, press again to stop and paste.")
+                Text("Press \(appState.dictationHotKey.displayString) to start dictation, press again to stop and paste.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+
+            Divider()
+
+            hotkeyRow
 
             Divider()
 
@@ -412,6 +416,23 @@ private struct ParakeetTab: View {
     private func refreshPermissions() {
         micGranted = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         axGranted = AXIsProcessTrusted()
+    }
+
+    private var hotkeyRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Shortcut").font(.subheadline).fontWeight(.medium)
+                Text("Click and press a key combination (with at least one modifier).")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            HotkeyRecorderView(combo: appState.dictationHotKey) { newCombo in
+                appState.dictationHotKeyCode = newCombo.keyCode
+                appState.dictationHotKeyModifiers = newCombo.modifiers
+                SpeechManager.shared.updateHotKey()
+            }
+            .frame(width: 140, height: 28)
+        }
     }
 
     private var languageRow: some View {
