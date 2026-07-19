@@ -23,6 +23,17 @@ final class AudioSampleBuffer: @unchecked Sendable {
         }
     }
 
+    /// Removes and returns exactly `n` samples, or nil if fewer are available
+    /// (used to feed the VAD in fixed-size chunks).
+    func take(_ n: Int) -> [Float]? {
+        lock.withLock {
+            guard samples.count >= n else { return nil }
+            let chunk = Array(samples.prefix(n))
+            samples.removeFirst(n)
+            return chunk
+        }
+    }
+
     func reset() {
         lock.withLock { samples.removeAll(keepingCapacity: true) }
     }

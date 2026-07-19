@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import Carbon
+import FluidAudio
 import os
 
 @MainActor
@@ -54,6 +55,18 @@ final class SpeechManager: ObservableObject {
     /// Live partials reuse it to stay cheap and stable between commits.
     private var lastAutoLanguage: String?
 
+    // MARK: Voice activity detection (segmentation)
+
+    /// Silero VAD for speech-boundary detection. When nil (not loaded / offline)
+    /// we fall back to the RMS energy heuristic.
+    private var vad: VadManager?
+    private var vadState: VadStreamState?
+    private var vadLoop: Task<Void, Never>?
+    private let vadFeed = AudioSampleBuffer()
+    /// A touch more forgiving than the 0.75 s default so mid-sentence pauses
+    /// don't end a segment prematurely.
+    private let vadSegConfig = VadSegmentationConfig(minSilenceDuration: 1.0)
+
     /// Hints for a committed segment (full set — may trigger bilingual arbitration).
     private var commitHints: [String] { AppState.shared.parakeetLanguageHints }
 
@@ -92,9 +105,27 @@ final class SpeechManager: ObservableObject {
         }
     }
 
+    /// Loads the VAD model in the background at launch so the first dictation
+    /// already has smart segmentation (falls back to RMS if it isn't ready).
+    func primeVad() {
+        Task { await ensureVad() }
+    }
+
+    private func ensureVad() async {
+        guard vad == nil else { return }
+        do {
+            vad = try await VadManager()
+            log.debug("VAD model loaded")
+        } catch {
+            log.error("VAD load failed, using RMS fallback: \(error.localizedDescription)")
+            vad = nil
+        }
+    }
+
     func teardown() {
         hotKey?.unregister()
         stopPartialLoop()
+        stopVadLoop()
         stopAudioEngine()
         indicator.hide()
     }
@@ -213,6 +244,7 @@ final class SpeechManager: ObservableObject {
         silenceTimer?.cancel()
         silenceTimer = nil
         stopPartialLoop()
+        stopVadLoop()
         segmentGeneration += 1            // drop any in-flight partials
         state = .transcribing
         stopAudioEngine()
@@ -349,6 +381,8 @@ final class SpeechManager: ObservableObject {
         let silenceThreshold: Float = 0.02
         let silenceDuration: TimeInterval = 1.5
         let buffer = sampleBuffer
+        let feed = vadFeed
+        let useVad = vad != nil
         // `wasSilence` is only ever touched from the (serial) audio-tap thread,
         // so we can track transitions without a lock and only signal on change.
         let silenceState = SilenceState()
@@ -362,12 +396,16 @@ final class SpeechManager: ObservableObject {
             let samples = Array(UnsafeBufferPointer(start: floatData[0], count: frames))
             buffer.append(samples)
 
+            if useVad {
+                feed.append(samples)   // the VAD loop segments on speech-end
+                return
+            }
+
+            // Fallback: RMS energy heuristic with a fixed silence timer.
             let rms = sqrt(samples.reduce(0) { $0 + $1 * $1 } / Float(frames))
             let isSilence = rms < silenceThreshold
             guard isSilence != silenceState.wasSilence else { return }
             silenceState.wasSilence = isSilence
-
-            // Hand off to the main actor; all `state`/`silenceTimer` access lives there.
             Task { @MainActor [weak self] in
                 self?.handleSilenceChange(isSilence: isSilence, duration: silenceDuration)
             }
@@ -376,9 +414,57 @@ final class SpeechManager: ObservableObject {
         do {
             try engine.start()
             state = .listening
+            if useVad { startVadLoop() }
             if dictationMode == .pad { startPartialLoop() }
         } catch {
             state = .idle
+        }
+    }
+
+    // MARK: - VAD segmentation loop
+
+    private func startVadLoop() {
+        guard let vad else { return }
+        vadFeed.reset()
+        vadLoop = Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.vadState = await vad.makeStreamState()
+            while !Task.isCancelled {
+                guard self.vadFeed.count >= VadManager.chunkSize,
+                      let chunk = self.vadFeed.take(VadManager.chunkSize),
+                      let currentState = self.vadState
+                else {
+                    try? await Task.sleep(nanoseconds: 40_000_000)   // 40 ms
+                    continue
+                }
+                do {
+                    let result = try await vad.processStreamingChunk(
+                        chunk, state: currentState, config: self.vadSegConfig)
+                    self.vadState = result.state
+                    if result.event?.kind == .speechEnd {
+                        self.handleSpeechEnd()
+                    }
+                } catch {
+                    self.log.error("VAD chunk failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func stopVadLoop() {
+        vadLoop?.cancel()
+        vadLoop = nil
+        vadState = nil
+        vadFeed.reset()
+    }
+
+    /// A speech segment ended (VAD event or RMS-timer fallback).
+    private func handleSpeechEnd() {
+        guard case .listening = state else { return }
+        if dictationMode == .pad {
+            commitPadSegment()   // continuous: transcribe segment, keep recording
+        } else {
+            stop()               // one-shot: transcribe and paste
         }
     }
 
@@ -390,11 +476,7 @@ final class SpeechManager: ObservableObject {
         silenceTimer = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             guard !Task.isCancelled, let self, case .listening = self.state else { return }
-            if self.dictationMode == .pad {
-                self.commitPadSegment()   // continuous: transcribe segment, keep recording
-            } else {
-                self.stop()               // one-shot: transcribe and paste
-            }
+            self.handleSpeechEnd()
         }
     }
 

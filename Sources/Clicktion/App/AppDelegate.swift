@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         speechManager = SpeechManager.shared
         speechManager.setup(parakeetEngine: engine)
         speechManager.primeMicrophonePermission()
+        speechManager.primeVad()
     }
 
     @MainActor private func setupStatusItem() {
