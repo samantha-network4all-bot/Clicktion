@@ -36,9 +36,16 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
         (await run(Self.extractJS) as? String) ?? "[]"
     }
 
-    /// A short excerpt of the page's visible text for context.
+    /// An excerpt of the page's main content, preferring the article/main region
+    /// so navigation chrome doesn't crowd out the actual text.
     func pageText() async -> String {
-        let js = "document.body ? document.body.innerText.slice(0, 3000) : ''"
+        let js = """
+            (function(){
+              var m = document.querySelector('main, article, [role="main"], #mw-content-text, #content');
+              var t = m || document.body;
+              return t ? t.innerText.slice(0, 6000) : '';
+            })();
+            """
         return (await run(js) as? String) ?? ""
     }
 
