@@ -33,6 +33,7 @@
       <th>Name</th>
       <th>Endpoint</th>
       <th>Model</th>
+      <th>Features</th>
       <th>Type</th>
       <th>Order</th>
       <th>Default</th>
@@ -41,13 +42,18 @@
   </thead>
   <tbody>
   {{if not .Models}}
-  <tr class="table-empty"><td colspan="7">No models yet. <a href="/admin/models/new">Add your first model →</a></td></tr>
+  <tr class="table-empty"><td colspan="8">No models yet. <a href="/admin/models/new">Add your first model →</a></td></tr>
   {{else}}
   {{range .Models}}
   <tr>
     <td><strong>{{.Name}}</strong></td>
     <td style="font-size:12px;color:var(--secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{.BaseURL}}</td>
     <td style="font-family:monospace;font-size:13px">{{.ModelName}}</td>
+    <td style="font-size:12px;white-space:nowrap">
+      {{if hasVision .ModelName}}<span title="Accepts images" style="margin-right:4px">👁 Vision</span>{{end}}
+      {{if hasThinking .ModelName}}<span title="Emits reasoning">🧠 Thinking</span>{{end}}
+      {{if and (not (hasVision .ModelName)) (not (hasThinking .ModelName))}}<span style="color:var(--secondary)">—</span>{{end}}
+    </td>
     <td><span class="{{classifyClass .IsLocal .IsLocalOverride}}">{{classifyLabel .IsLocal .IsLocalOverride}}</span></td>
     <td style="color:var(--secondary)">{{.FallbackOrder}}</td>
     <td>{{if .IsDefault}}<span style="color:var(--green);font-weight:600">✓ Default</span>{{end}}</td>

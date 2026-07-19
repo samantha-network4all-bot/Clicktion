@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/clicktion/service/internal/llm"
 	clickweb "github.com/clicktion/service/web"
 )
 
@@ -42,6 +43,8 @@ func init() {
 			return out
 		},
 		"renderContent": func(s string) template.HTML { return renderContent(s) },
+		"hasVision":     llm.SupportsVision,
+		"hasThinking":   llm.SupportsThinking,
 		"classifyLabel": func(isLocal bool, override *bool) string {
 			if override != nil {
 				if *override {

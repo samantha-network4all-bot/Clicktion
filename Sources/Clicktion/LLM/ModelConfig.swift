@@ -17,6 +17,20 @@ struct ModelConfig: Identifiable, Codable, Hashable {
         return isLocal
     }
 
+    /// Best-effort capability detection from the model name (mirrors the Go
+    /// helper used in the web models overview).
+    var supportsVision: Bool {
+        let n = modelName.lowercased()
+        return ["vl", "vision", "llava", "moondream", "minicpm-v",
+                "pixtral", "internvl", "gemma-3", "gemma3", "vlm"].contains { n.contains($0) }
+    }
+
+    var supportsThinking: Bool {
+        let n = modelName.lowercased()
+        return ["qwq", "-r1", "r1-", "deepseek-r1", "reason",
+                "thinking", "magistral", "qwen3", "o1", "o3"].contains { n.contains($0) }
+    }
+
     static func classify(url: String) -> Bool {
         guard let host = URLComponents(string: url)?.host else { return false }
         let local = ["localhost", "127.0.0.1", "::1"]

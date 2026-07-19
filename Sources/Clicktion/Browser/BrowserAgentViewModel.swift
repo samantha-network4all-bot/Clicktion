@@ -27,6 +27,10 @@ final class BrowserAgentViewModel: ObservableObject {
     private var task: Task<Void, Never>?
     private let maxSteps = 8
 
+    init() {
+        loadModels()
+    }
+
     // MARK: - Instructions
 
     /// Handles a spoken/typed instruction: runs the agent loop.
@@ -142,11 +146,10 @@ final class BrowserAgentViewModel: ObservableObject {
             guard let image = await web.snapshot() else {
                 return ("Screenshot failed.", false)
             }
-            let modelID = AppState.shared.browserVisionModelID
             do {
                 let description = try await ServiceClient.shared.agentVision(
                     image: image, question: question,
-                    modelID: modelID.isEmpty ? nil : modelID)
+                    modelID: effectiveVisionModelID())
                 return ("Screen description: \(description)", false)
             } catch {
                 return ("Vision lookup failed: \(error.localizedDescription)", false)
@@ -172,6 +175,17 @@ final class BrowserAgentViewModel: ObservableObject {
             Page text excerpt:
             \(text)
             """
+    }
+
+    /// The vision model to use: the explicit picker choice, otherwise the first
+    /// vision-capable configured model (preferring local), otherwise nil (server
+    /// falls back to the local default).
+    private func effectiveVisionModelID() -> String? {
+        let picked = AppState.shared.browserVisionModelID
+        if !picked.isEmpty { return picked }
+        let auto = models.first { $0.effectivelyLocal && $0.supportsVision }
+            ?? models.first { $0.supportsVision }
+        return auto?.id.uuidString
     }
 
     private func needsConfirmation(label: String) -> Bool {

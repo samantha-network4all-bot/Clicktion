@@ -71,9 +71,10 @@ struct BrowserAgentView: View {
                 Text("Vision model").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Picker("", selection: $appState.browserVisionModelID) {
-                    Text("Default").tag("")
+                    Text("Auto").tag("")
                     ForEach(vm.models) { model in
-                        Text(model.name).tag(model.id.uuidString)
+                        Text(model.supportsVision ? "👁 \(model.name)" : model.name)
+                            .tag(model.id.uuidString)
                     }
                 }
                 .labelsHidden()
