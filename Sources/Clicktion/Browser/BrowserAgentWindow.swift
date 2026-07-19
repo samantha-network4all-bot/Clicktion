@@ -17,6 +17,12 @@ final class BrowserAgentWindow {
             return
         }
 
+        // Spoken instructions are queued on the view model; the user can keep
+        // talking while the agent works.
+        SpeechManager.shared.onAgentInstruction = { [weak self] instruction in
+            self?.vm.submit(instruction)
+        }
+
         let controller = NSHostingController(rootView: BrowserAgentView(vm: vm))
         let win = NSWindow(contentViewController: controller)
         win.title = "Browser Assistant"
@@ -33,6 +39,8 @@ final class BrowserAgentWindow {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                SpeechManager.shared.setAgentDictating(false)
+                SpeechManager.shared.onAgentInstruction = nil
                 self?.vm.stop()
                 self?.window = nil
             }

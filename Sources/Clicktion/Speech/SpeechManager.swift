@@ -25,6 +25,8 @@ final class SpeechManager: ObservableObject {
     /// True while the Dictation Pad's STT switch is on (continuous listening).
     /// Published so the pad's toggle stays in sync even when the hotkey flips it.
     @Published private(set) var isPadDictating = false
+    /// True while the Browser Assistant mic is on (continuous instruction dictation).
+    @Published private(set) var isAgentDictating = false
 
     /// Delivers each finished (committed) segment to the Dictation Pad.
     var onPadTranscription: ((String) -> Void)?
@@ -258,12 +260,19 @@ final class SpeechManager: ObservableObject {
         }
     }
 
-    /// One-shot spoken instruction for the browser agent: records until the
-    /// speaker pauses, then delivers the transcript via `onInstruction`.
-    func startAgentDictation(onInstruction: @escaping (String) -> Void) {
-        guard case .idle = state else { return }
-        onAgentInstruction = onInstruction
-        beginDictation(mode: .agent)
+    /// Starts/stops continuous instruction dictation for the browser agent.
+    /// Each spoken utterance is delivered via `onAgentInstruction` — the caller
+    /// can queue these while the agent is still processing an earlier one.
+    func setAgentDictating(_ on: Bool) {
+        if on {
+            guard !isAgentDictating, case .idle = state else { return }
+            isAgentDictating = true
+            beginDictation(mode: .agent)
+        } else {
+            guard isAgentDictating else { return }
+            isAgentDictating = false
+            if case .listening = state { stop() }
+        }
     }
 
     private func beginDictation(mode: DictationMode) {
@@ -275,6 +284,7 @@ final class SpeechManager: ObservableObject {
             guard await requestMicrophonePermission() else {
                 state = .idle
                 isPadDictating = false
+                isAgentDictating = false
                 showMicPermissionAlert()
                 return
             }
@@ -282,6 +292,7 @@ final class SpeechManager: ObservableObject {
             guard let parakeet else {
                 state = .idle
                 isPadDictating = false
+                isAgentDictating = false
                 return
             }
 
@@ -298,14 +309,15 @@ final class SpeechManager: ObservableObject {
                 } catch {
                     state = .idle
                     isPadDictating = false
+                    isAgentDictating = false
                     showModelDownloadError(error)
                     return
                 }
                 modelDownloaded = true
             }
 
-            // User may have switched the pad off during download.
-            if mode == .pad && !isPadDictating {
+            // User may have switched dictation off during download.
+            if (mode == .pad && !isPadDictating) || (mode == .agent && !isAgentDictating) {
                 state = .idle
                 return
             }
@@ -375,8 +387,8 @@ final class SpeechManager: ObservableObject {
     /// Continuous pad mode: transcribe the audio accumulated since the last
     /// commit and append it, **without stopping the engine** — so no audio is
     /// lost at the start of the next utterance. Called on each speech pause.
-    private func commitPadSegment() {
-        guard case .listening = state, dictationMode == .pad, isPadDictating else { return }
+    private func commitContinuousSegment() {
+        guard case .listening = state, isPadDictating || isAgentDictating else { return }
         guard !isCommittingSegment else { return }        // keep accumulating; commit on next pause
         guard sampleBuffer.count >= minSegmentSamples else {
             log.debug("skipping short segment (\(self.sampleBuffer.count) samples)")
@@ -387,14 +399,21 @@ final class SpeechManager: ObservableObject {
         segmentGeneration += 1            // invalidate any in-flight partials for this segment
         let samples = sampleBuffer.drain()
         let hints = commitHints
+        let mode = dictationMode
 
         Task {
             defer { isCommittingSegment = false }
             do {
                 let result = try await parakeet?.transcribe(samples, sampleRate: 16000, languageHints: hints)
                 if let code = result?.languageCode { lastAutoLanguage = code }
-                let trimmed = (result?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { onPadTranscription?(trimmed) }
+                let text = result?.text ?? ""
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                switch mode {
+                case .pad:   onPadTranscription?(trimmed)
+                case .agent: onAgentInstruction?(text)   // queued by the agent while it works
+                default:     break
+                }
             } catch {
                 log.error("segment transcription failed: \(error.localizedDescription)")
                 onPadError?("Couldn't transcribe that part: \(error.localizedDescription)")
@@ -555,10 +574,10 @@ final class SpeechManager: ObservableObject {
     private func handleSpeechEnd() {
         guard case .listening = state else { return }
         if isPushToHold { return }   // hold sessions stop only on key release
-        if dictationMode == .pad {
-            commitPadSegment()   // continuous: transcribe segment, keep recording
+        if isPadDictating || isAgentDictating {
+            commitContinuousSegment()   // continuous: transcribe segment, keep recording
         } else {
-            stop()               // one-shot: transcribe and paste
+            stop()                      // one-shot: transcribe and paste
         }
     }
 

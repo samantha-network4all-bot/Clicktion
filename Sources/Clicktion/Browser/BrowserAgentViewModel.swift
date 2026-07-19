@@ -21,10 +21,14 @@ final class BrowserAgentViewModel: ObservableObject {
     /// Configured models, for the vision-model picker.
     @Published var models: [ModelConfig] = []
 
+    /// Number of instructions waiting to run after the current one.
+    var pendingCount: Int { pending.count }
+
     private var conversation: [AgentMessage] = [
         AgentMessage(role: "system", content: BrowserAgentViewModel.systemPrompt)
     ]
     private var task: Task<Void, Never>?
+    private var pending: [String] = []
     private let maxSteps = 8
 
     init() {
@@ -33,22 +37,34 @@ final class BrowserAgentViewModel: ObservableObject {
 
     // MARK: - Instructions
 
-    /// Handles a spoken/typed instruction: runs the agent loop.
+    /// Queues a spoken/typed instruction. You can keep talking while the agent
+    /// is still working — new instructions run after the current one, so the
+    /// model never blocks the microphone.
     func submit(_ instruction: String) {
         let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isRunning else { return }
+        guard !text.isEmpty else { return }
         log.append(AgentLogEntry(role: .user, text: text))
-        conversation.append(AgentMessage(role: "user", content: text))
+        pending.append(text)
+        if !isRunning { drainQueue() }
+    }
+
+    private func drainQueue() {
         isRunning = true
         task = Task { [weak self] in
-            await self?.runLoop()
-            self?.isRunning = false
+            guard let self else { return }
+            while !self.pending.isEmpty, !Task.isCancelled {
+                let next = self.pending.removeFirst()
+                self.conversation.append(AgentMessage(role: "user", content: next))
+                await self.runLoop()
+            }
+            self.isRunning = false
         }
     }
 
     func stop() {
         task?.cancel()
         task = nil
+        pending.removeAll()
         isRunning = false
         log.append(AgentLogEntry(role: .action, text: "Stopped."))
     }

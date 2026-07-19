@@ -6,13 +6,6 @@ struct BrowserAgentView: View {
     @ObservedObject private var appState = AppState.shared
     @State private var instruction = ""
 
-    private var isListening: Bool {
-        switch speech.state {
-        case .listening, .requestingMicPermission, .transcribing: return true
-        default: return false
-        }
-    }
-
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 0) {
@@ -65,6 +58,9 @@ struct BrowserAgentView: View {
     private var controls: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle("Ask before each action", isOn: $vm.confirmEachAction)
+                .font(.caption)
+
+            Toggle("Auto-accept cookie banners", isOn: $appState.browserAutoAcceptCookies)
                 .font(.caption)
 
             HStack {
@@ -123,15 +119,18 @@ struct BrowserAgentView: View {
                 Button(action: send) {
                     Image(systemName: "paperplane.fill")
                 }
-                .disabled(instruction.trimmingCharacters(in: .whitespaces).isEmpty || vm.isRunning)
+                .disabled(instruction.trimmingCharacters(in: .whitespaces).isEmpty)
             }
 
             HStack {
-                Button(action: speak) {
-                    Label(isListening ? "Listening…" : "Speak", systemImage: "mic.fill")
+                // Continuous mic: stays on so you can keep giving instructions
+                // while the agent is still working.
+                Button(action: toggleMic) {
+                    Label(speech.isAgentDictating ? "Listening… (tap to stop)" : "Speak",
+                          systemImage: speech.isAgentDictating ? "mic.fill" : "mic")
                         .frame(maxWidth: .infinity)
                 }
-                .disabled(vm.isRunning || isListening)
+                .tint(speech.isAgentDictating ? .red : nil)
 
                 if vm.isRunning {
                     Button(role: .destructive, action: vm.stop) {
@@ -143,11 +142,15 @@ struct BrowserAgentView: View {
             if vm.isRunning {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Working…").font(.caption).foregroundStyle(.secondary)
+                    Text(pendingLabel).font(.caption).foregroundStyle(.secondary)
                     Spacer()
                 }
             }
         }
+    }
+
+    private var pendingLabel: String {
+        vm.pendingCount > 0 ? "Working… (\(vm.pendingCount) queued)" : "Working…"
     }
 
     private func send() {
@@ -156,9 +159,7 @@ struct BrowserAgentView: View {
         vm.submit(text)
     }
 
-    private func speak() {
-        SpeechManager.shared.startAgentDictation { spoken in
-            vm.submit(spoken)
-        }
+    private func toggleMic() {
+        SpeechManager.shared.setAgentDictating(!speech.isAgentDictating)
     }
 }
