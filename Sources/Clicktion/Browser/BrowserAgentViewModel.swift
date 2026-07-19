@@ -24,6 +24,41 @@ final class BrowserAgentViewModel: ObservableObject {
     /// Number of instructions waiting to run after the current one.
     var pendingCount: Int { pending.count }
 
+    // MARK: - Benchmark
+    @Published var isBenchmarking = false
+    @Published var benchmarkProgress = ""
+    @Published var benchmarkResults: [BenchResult] = []
+
+    var benchmarkScore: Int { benchmarkResults.filter(\.passed).count }
+
+    /// Runs the built-in benchmark against the selected agent model.
+    func runBenchmark() {
+        guard !isRunning, !isBenchmarking else { return }
+        isBenchmarking = true
+        benchmarkResults = []
+        let tasks = BrowserBenchmark.tasks
+        log.append(AgentLogEntry(role: .action, text: "Benchmark started (\(tasks.count) tasks)…"))
+        task = Task { [weak self] in
+            guard let self else { return }
+            for (i, t) in tasks.enumerated() {
+                if Task.isCancelled { break }
+                self.benchmarkProgress = "Task \(i + 1)/\(tasks.count): \(t.name)"
+                self.conversation = [AgentMessage(role: "system", content: Self.systemPrompt)]
+                self.conversation.append(AgentMessage(role: "user", content: t.instruction))
+                self.log.append(AgentLogEntry(role: .user, text: "▶︎ [\(t.name)] \(t.instruction)"))
+                let answer = await self.runLoop()
+                let passed = t.grade(answer)
+                self.benchmarkResults.append(BenchResult(
+                    name: t.name, passed: passed,
+                    answer: answer.trimmingCharacters(in: .whitespacesAndNewlines)))
+                self.log.append(AgentLogEntry(role: passed ? .action : .error,
+                                              text: "\(passed ? "✓" : "✗") \(t.name)"))
+            }
+            self.benchmarkProgress = ""
+            self.isBenchmarking = false
+        }
+    }
+
     private var conversation: [AgentMessage] = [
         AgentMessage(role: "system", content: BrowserAgentViewModel.systemPrompt)
     ]
@@ -66,6 +101,8 @@ final class BrowserAgentViewModel: ObservableObject {
         task = nil
         pending.removeAll()
         isRunning = false
+        isBenchmarking = false
+        benchmarkProgress = ""
         log.append(AgentLogEntry(role: .action, text: "Stopped."))
     }
 
@@ -85,9 +122,13 @@ final class BrowserAgentViewModel: ObservableObject {
 
     // MARK: - Agent loop
 
-    private func runLoop() async {
+    /// Runs the agent loop over `conversation` and returns the accumulated
+    /// answer text (assistant messages + the done summary) — used for grading.
+    @discardableResult
+    private func runLoop() async -> String {
+        var answer = ""
         for _ in 0..<maxSteps {
-            if Task.isCancelled { return }
+            if Task.isCancelled { return answer }
 
             let turn: AgentTurn
             do {
@@ -97,7 +138,7 @@ final class BrowserAgentViewModel: ObservableObject {
                     modelID: agentModel.isEmpty ? nil : agentModel)
             } catch {
                 log.append(AgentLogEntry(role: .error, text: error.localizedDescription))
-                return
+                return answer
             }
 
             conversation.append(AgentMessage(
@@ -107,19 +148,25 @@ final class BrowserAgentViewModel: ObservableObject {
 
             if !turn.content.isEmpty {
                 log.append(AgentLogEntry(role: .assistant, text: turn.content))
+                answer += turn.content + "\n"
             }
-            if turn.toolCalls.isEmpty { return }   // model responded with text only
+            if turn.toolCalls.isEmpty { return answer }   // model responded with text only
 
             for call in turn.toolCalls {
-                if Task.isCancelled { return }
+                if Task.isCancelled { return answer }
+                if call.function.name == "done",
+                   let summary = call.function.parsedArguments()["summary"] as? String {
+                    answer += summary + "\n"
+                }
                 let (result, done) = await execute(call)
                 conversation.append(AgentMessage(
                     role: "tool", content: result,
                     toolCallID: call.id, name: call.function.name))
-                if done { return }
+                if done { return answer }
             }
         }
         log.append(AgentLogEntry(role: .action, text: "Reached step limit."))
+        return answer
     }
 
     private func execute(_ call: ToolCall) async -> (result: String, done: Bool) {

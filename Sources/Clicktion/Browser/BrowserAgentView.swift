@@ -5,6 +5,7 @@ struct BrowserAgentView: View {
     @ObservedObject private var speech = SpeechManager.shared
     @ObservedObject private var appState = AppState.shared
     @State private var instruction = ""
+    @State private var showBenchmark = false
 
     var body: some View {
         // HSplitView (NSSplitView) hosts the WKWebView correctly and keeps the
@@ -90,7 +91,74 @@ struct BrowserAgentView: View {
                 .labelsHidden()
                 .frame(maxWidth: 140)
             }
+
+            Divider()
+
+            HStack {
+                Button {
+                    vm.runBenchmark()
+                    showBenchmark = true
+                } label: {
+                    Label("Benchmark model", systemImage: "checklist")
+                }
+                .disabled(vm.isRunning || vm.isBenchmarking)
+
+                if vm.isBenchmarking {
+                    ProgressView().controlSize(.small)
+                } else if !vm.benchmarkResults.isEmpty {
+                    Button("Score \(vm.benchmarkScore)/\(vm.benchmarkResults.count)") {
+                        showBenchmark = true
+                    }
+                    .font(.caption)
+                }
+            }
         }
+        .sheet(isPresented: $showBenchmark) { benchmarkSheet }
+    }
+
+    private var benchmarkSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Model Benchmark").font(.headline)
+                Spacer()
+                if !vm.benchmarkResults.isEmpty {
+                    Text("Score \(vm.benchmarkScore)/\(vm.benchmarkResults.count)")
+                        .font(.headline)
+                        .foregroundStyle(vm.benchmarkScore == vm.benchmarkResults.count ? .green : .primary)
+                }
+            }
+
+            if vm.isBenchmarking {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(vm.benchmarkProgress).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            List(vm.benchmarkResults) { r in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: r.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(r.passed ? .green : .red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(r.name).font(.callout).fontWeight(.medium)
+                        Text(r.answer.isEmpty ? "(no answer)" : r.answer)
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                    }
+                }
+            }
+            .frame(minHeight: 300)
+
+            HStack {
+                if vm.isBenchmarking {
+                    Button("Stop", role: .destructive) { vm.stop() }
+                }
+                Spacer()
+                Button("Close") { showBenchmark = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 460, height: 480)
     }
 
     private var transcript: some View {
