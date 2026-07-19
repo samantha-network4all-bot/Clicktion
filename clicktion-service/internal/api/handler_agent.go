@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/clicktion/service/internal/llm"
 )
@@ -11,23 +12,24 @@ import (
 // agentTurn runs one tool-enabled LLM turn for the browser agent. Orchestration
 // (executing tool calls against the WebView, looping) lives in the Mac app; this
 // endpoint is a thin, stateless proxy over the configured local model.
-// resolveModelClient returns an LLM client for the given model id, or the local
-// default when id is empty. Writes an HTTP error and returns nil on failure.
-func (h *handler) resolveModelClient(w http.ResponseWriter, id string) *llm.Client {
+// resolveModelClient returns an LLM client and the model's name for the given
+// id, or the local default when id is empty. Writes an HTTP error and returns
+// nil on failure.
+func (h *handler) resolveModelClient(w http.ResponseWriter, id string) (*llm.Client, string) {
 	if id != "" {
 		m, err := h.db.GetModel(id)
 		if err != nil || m == nil {
 			http.Error(w, "model not found", http.StatusBadRequest)
-			return nil
+			return nil, ""
 		}
-		return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName)
+		return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName), m.ModelName
 	}
 	m, err := h.db.DefaultModel(true)
 	if err != nil || m == nil {
 		http.Error(w, "no local model configured", http.StatusServiceUnavailable)
-		return nil
+		return nil, ""
 	}
-	return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName)
+	return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName), m.ModelName
 }
 
 func (h *handler) agentTurn(w http.ResponseWriter, r *http.Request) {
@@ -41,16 +43,21 @@ func (h *handler) agentTurn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := h.resolveModelClient(w, body.ModelID)
+	client, modelName := h.resolveModelClient(w, body.ModelID)
 	if client == nil {
 		return
 	}
+	start := time.Now()
 	turn, err := client.CompleteWithTools(r.Context(), body.Messages, body.Tools)
+	ms := time.Since(start).Milliseconds()
 	if err != nil {
-		log.Printf("agent/turn failed (model_id=%q, %d messages): %v", body.ModelID, len(body.Messages), err)
+		log.Printf("agent/turn model=%s messages=%d FAILED after %dms: %v",
+			modelName, len(body.Messages), ms, err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
+	log.Printf("agent/turn model=%s messages=%d -> %d tool_call(s) in %dms",
+		modelName, len(body.Messages), len(turn.ToolCalls), ms)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(turn)
@@ -73,7 +80,7 @@ func (h *handler) agentVision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := h.resolveModelClient(w, body.ModelID)
+	client, modelName := h.resolveModelClient(w, body.ModelID)
 	if client == nil {
 		return
 	}
@@ -83,12 +90,15 @@ func (h *handler) agentVision(w http.ResponseWriter, r *http.Request) {
 		question = "Describe this web page and where the key interactive elements are."
 	}
 
+	start := time.Now()
 	text, err := client.CompleteVision(r.Context(), question, body.Image, 512)
+	ms := time.Since(start).Milliseconds()
 	if err != nil {
-		log.Printf("agent/vision failed (model_id=%q): %v", body.ModelID, err)
+		log.Printf("agent/vision model=%s FAILED after %dms: %v", modelName, ms, err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
+	log.Printf("agent/vision model=%s -> %d chars in %dms", modelName, len(text), ms)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"text": text})
