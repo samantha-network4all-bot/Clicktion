@@ -16,6 +16,11 @@ let package = Package(
                 .product(name: "FluidAudio", package: "FluidAudio")
             ],
             path: "Sources/Clicktion"
+        ),
+        .testTarget(
+            name: "ClicktionTests",
+            dependencies: ["Clicktion"],
+            path: "Tests/ClicktionTests"
         )
     ]
 )
