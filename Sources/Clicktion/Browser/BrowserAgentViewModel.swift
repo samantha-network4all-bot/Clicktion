@@ -91,7 +91,10 @@ final class BrowserAgentViewModel: ObservableObject {
 
             let turn: AgentTurn
             do {
-                turn = try await ServiceClient.shared.agentTurn(messages: conversation, tools: Self.tools)
+                let agentModel = AppState.shared.browserAgentModelID
+                turn = try await ServiceClient.shared.agentTurn(
+                    messages: conversation, tools: Self.tools,
+                    modelID: agentModel.isEmpty ? nil : agentModel)
             } catch {
                 log.append(AgentLogEntry(role: .error, text: error.localizedDescription))
                 return

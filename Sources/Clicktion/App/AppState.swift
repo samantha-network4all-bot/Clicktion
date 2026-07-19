@@ -162,6 +162,12 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(browserAutoAcceptCookies, forKey: "browserAutoAcceptCookies") }
     }
 
+    /// Model id used for the browser agent's tool-calling. Empty → local default.
+    @Published var browserAgentModelID: String =
+        UserDefaults.standard.string(forKey: "browserAgentModelID") ?? "" {
+        didSet { UserDefaults.standard.set(browserAgentModelID, forKey: "browserAgentModelID") }
+    }
+
     /// "toggle" (press to start, press again to stop) or "hold" (push-to-hold).
     @Published var dictationHotKeyMode: String = {
         let v = UserDefaults.standard.string(forKey: "dictationHotKeyMode") ?? "toggle"

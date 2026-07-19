@@ -183,12 +183,14 @@ final class ServiceClient {
 
     // MARK: - Browser agent
 
-    func agentTurn(messages: [AgentMessage], tools: [AgentTool]) async throws -> AgentTurn {
+    func agentTurn(messages: [AgentMessage], tools: [AgentTool], modelID: String?) async throws -> AgentTurn {
         struct Body: Encodable {
             let messages: [AgentMessage]
             let tools: [AgentTool]
+            let model_id: String?
         }
-        return try await post("/api/agent/turn", body: Body(messages: messages, tools: tools))
+        return try await post("/api/agent/turn",
+                              body: Body(messages: messages, tools: tools, model_id: modelID))
     }
 
     func agentVision(image: String, question: String, modelID: String?) async throws -> String {

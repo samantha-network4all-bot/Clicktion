@@ -10,24 +10,40 @@ import (
 // agentTurn runs one tool-enabled LLM turn for the browser agent. Orchestration
 // (executing tool calls against the WebView, looping) lives in the Mac app; this
 // endpoint is a thin, stateless proxy over the configured local model.
+// resolveModelClient returns an LLM client for the given model id, or the local
+// default when id is empty. Writes an HTTP error and returns nil on failure.
+func (h *handler) resolveModelClient(w http.ResponseWriter, id string) *llm.Client {
+	if id != "" {
+		m, err := h.db.GetModel(id)
+		if err != nil || m == nil {
+			http.Error(w, "model not found", http.StatusBadRequest)
+			return nil
+		}
+		return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName)
+	}
+	m, err := h.db.DefaultModel(true)
+	if err != nil || m == nil {
+		http.Error(w, "no local model configured", http.StatusServiceUnavailable)
+		return nil
+	}
+	return llm.NewClient(m.BaseURL, m.APIKey, m.ModelName)
+}
+
 func (h *handler) agentTurn(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Messages []llm.AgentMessage `json:"messages"`
 		Tools    []llm.Tool         `json:"tools"`
+		ModelID  string             `json:"model_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Browser agent is local-only (privacy).
-	model, err := h.db.DefaultModel(true)
-	if err != nil || model == nil {
-		http.Error(w, "no local model configured", http.StatusServiceUnavailable)
+	client := h.resolveModelClient(w, body.ModelID)
+	if client == nil {
 		return
 	}
-
-	client := llm.NewClient(model.BaseURL, model.APIKey, model.ModelName)
 	turn, err := client.CompleteWithTools(r.Context(), body.Messages, body.Tools)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
@@ -55,21 +71,9 @@ func (h *handler) agentVision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var baseURL, apiKey, modelName string
-	if body.ModelID != "" {
-		m, err := h.db.GetModel(body.ModelID)
-		if err != nil || m == nil {
-			http.Error(w, "model not found", http.StatusBadRequest)
-			return
-		}
-		baseURL, apiKey, modelName = m.BaseURL, m.APIKey, m.ModelName
-	} else {
-		m, err := h.db.DefaultModel(true)
-		if err != nil || m == nil {
-			http.Error(w, "no local model configured", http.StatusServiceUnavailable)
-			return
-		}
-		baseURL, apiKey, modelName = m.BaseURL, m.APIKey, m.ModelName
+	client := h.resolveModelClient(w, body.ModelID)
+	if client == nil {
+		return
 	}
 
 	question := body.Question
@@ -77,7 +81,6 @@ func (h *handler) agentVision(w http.ResponseWriter, r *http.Request) {
 		question = "Describe this web page and where the key interactive elements are."
 	}
 
-	client := llm.NewClient(baseURL, apiKey, modelName)
 	text, err := client.CompleteVision(r.Context(), question, body.Image, 512)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)

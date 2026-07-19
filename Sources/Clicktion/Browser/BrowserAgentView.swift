@@ -64,6 +64,19 @@ struct BrowserAgentView: View {
                 .font(.caption)
 
             HStack {
+                Text("Agent model").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $appState.browserAgentModelID) {
+                    Text("Default").tag("")
+                    ForEach(vm.models) { model in
+                        Text(model.name).tag(model.id.uuidString)
+                    }
+                }
+                .labelsHidden()
+                .frame(maxWidth: 140)
+            }
+
+            HStack {
                 Text("Vision model").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Picker("", selection: $appState.browserVisionModelID) {
