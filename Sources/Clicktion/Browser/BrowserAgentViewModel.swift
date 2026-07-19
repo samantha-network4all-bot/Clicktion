@@ -29,7 +29,7 @@ final class BrowserAgentViewModel: ObservableObject {
     ]
     private var task: Task<Void, Never>?
     private var pending: [String] = []
-    private let maxSteps = 8
+    private let maxSteps = 12
 
     init() {
         loadModels()
@@ -127,6 +127,13 @@ final class BrowserAgentViewModel: ObservableObject {
         switch call.function.name {
         case "navigate":
             let url = (args["url"] as? String) ?? ""
+            let lower = url.lowercased()
+            if lower.contains("://"), !(lower.hasPrefix("http://") || lower.hasPrefix("https://")) {
+                return ("Only http(s) URLs are supported. For visual details use look_at_screen.", false)
+            }
+            if lower.hasPrefix("view-source:") || lower.hasPrefix("javascript:") || lower.hasPrefix("file:") {
+                return ("Only http(s) URLs are supported. For visual details use look_at_screen.", false)
+            }
             log.append(AgentLogEntry(role: .action, text: "navigate → \(url)"))
             web.navigate(to: url)
             await web.waitUntilIdle()
@@ -249,11 +256,15 @@ final class BrowserAgentViewModel: ObservableObject {
         - To run a search or submit a form, prefer type with submit=true (this \
         presses Enter and works even when there is no visible submit button); \
         otherwise click the button or matching link.
-        - Stop as soon as the user's request is satisfied: call done with a one-line \
-        summary. Do not keep clicking once the goal is reached, and never repeat an \
-        action that already succeeded.
-        - If the element list doesn't show what you need (image or canvas UI), call \
-        look_at_screen. Keep responses concise.
+        - Only navigate to http(s) URLs. Never use view-source:, javascript:, or \
+        other schemes, and don't navigate to a page you just read.
+        - If a detail is only visual (e.g. a star rating shown as icons or images) \
+        and not present in the page text, call look_at_screen ONCE to read it — do \
+        not repeatedly read_page or navigate hoping it appears.
+        - Stop as soon as the user's request is satisfied: call done with a concise \
+        summary of the findings. Do not keep clicking once the goal is reached, and \
+        never repeat an action that already succeeded.
+        - Keep responses concise.
         """
 
     static let tools: [AgentTool] = [
