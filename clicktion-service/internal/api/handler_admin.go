@@ -97,6 +97,7 @@ type adminModelsData struct {
 	BenchTPS    string
 	BenchTokens int
 	BenchMs     int
+	BenchErr    string
 }
 
 func (h *handler) adminModels(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +115,7 @@ func (h *handler) adminModels(w http.ResponseWriter, r *http.Request) {
 		BenchTPS:    q.Get("bench_tps"),
 		BenchTokens: atoi(q.Get("bench_tokens")),
 		BenchMs:     atoi(q.Get("bench_ms")),
+		BenchErr:    q.Get("bench_err"),
 	})
 }
 
@@ -216,22 +218,35 @@ func (h *handler) adminModelBenchmark(w http.ResponseWriter, r *http.Request, id
 	defer cancel()
 
 	prompt := "Write approximately 300 words of continuous prose about the history of computing. Write flowing paragraphs, not lists."
+	// Count every streamed chunk — including reasoning/thinking output — so the
+	// throughput reflects real generation speed even for thinking models.
+	streamed := 0
 	res, err := client.Stream(ctx,
 		[]llm.Message{llm.TextMessage(llm.RoleUser, prompt)},
 		llm.StreamOptions{MaxTokens: 500, Temperature: -1},
-		func(string) {})
+		func(string) { streamed++ })
 	if err != nil {
-		redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=0&msg=%s",
+		redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=0&bench_err=%s",
 			id, urlEncode("Benchmark failed: "+err.Error())))
+		return
+	}
+
+	generated := streamed
+	if res.CompletionTokens > generated {
+		generated = res.CompletionTokens
+	}
+	if generated == 0 {
+		redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=0&bench_err=%s", id,
+			urlEncode("The model returned no output — it may not support streaming, or spent the budget on hidden reasoning.")))
 		return
 	}
 
 	tps := 0.0
 	if res.LatencyMs > 0 {
-		tps = float64(res.CompletionTokens) / (float64(res.LatencyMs) / 1000.0)
+		tps = float64(generated) / (float64(res.LatencyMs) / 1000.0)
 	}
 	redirect(w, r, fmt.Sprintf("/admin/models?bench_id=%s&bench_ok=1&bench_tps=%s&bench_tokens=%d&bench_ms=%d",
-		id, urlEncode(fmt.Sprintf("%.1f", tps)), res.CompletionTokens, res.LatencyMs))
+		id, urlEncode(fmt.Sprintf("%.1f", tps)), generated, res.LatencyMs))
 }
 
 // adminModelProbe fetches available model IDs from an OpenAI-compatible endpoint.

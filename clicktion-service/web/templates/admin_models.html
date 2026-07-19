@@ -22,10 +22,14 @@
 </div>
 {{end}}
 
-{{if and .BenchID .BenchOK}}
-<div class="flash flash-ok">
-  ⚡ Benchmark: <strong>{{.BenchTPS}} tokens/sec</strong> ({{.BenchTokens}} tokens in {{.BenchMs}}ms)
-</div>
+{{if .BenchID}}
+  {{if .BenchOK}}
+  <div class="flash flash-ok">
+    ⚡ Benchmark: <strong>{{.BenchTPS}} tokens/sec</strong> ({{.BenchTokens}} tokens in {{.BenchMs}}ms)
+  </div>
+  {{else}}
+  <div class="flash flash-err">⚠️ Benchmark: {{.BenchErr}}</div>
+  {{end}}
 {{end}}
 
 <div class="section-header">
