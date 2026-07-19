@@ -47,16 +47,24 @@ final class WebViewController: NSObject, ObservableObject, WKNavigationDelegate 
         return (await run(js) as? String) == "ok"
     }
 
-    func fill(ref: String, text: String) async -> Bool {
+    func fill(ref: String, text: String, submit: Bool = false) async -> Bool {
         let escaped = text
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "'", with: "\\'")
             .replacingOccurrences(of: "\n", with: "\\n")
+        // Submit: prefer the containing form (classic + JS forms with validation);
+        // otherwise dispatch Enter key events for JS-driven search boxes.
+        let submitJS = submit ? """
+            if(e.form&&e.form.requestSubmit){e.form.requestSubmit();}\
+            else{['keydown','keypress','keyup'].forEach(function(t){\
+            e.dispatchEvent(new KeyboardEvent(t,{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));});}
+            """ : ""
         let js = """
             var e=document.querySelector('[data-clik-ref=\(ref)]');
             if(e){e.focus();e.value='\(escaped)';\
             e.dispatchEvent(new Event('input',{bubbles:true}));\
-            e.dispatchEvent(new Event('change',{bubbles:true}));'ok'}else{'missing'}
+            e.dispatchEvent(new Event('change',{bubbles:true}));\
+            \(submitJS)'ok'}else{'missing'}
             """
         return (await run(js) as? String) == "ok"
     }

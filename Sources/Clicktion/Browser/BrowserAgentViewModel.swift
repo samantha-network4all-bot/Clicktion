@@ -119,13 +119,19 @@ final class BrowserAgentViewModel: ObservableObject {
         case "type":
             let ref = (args["ref"] as? String) ?? ""
             let text = (args["text"] as? String) ?? ""
-            if needsConfirmation(label: ref), !confirm("Allow typing into “\(ref)”?") {
+            let submit = (args["submit"] as? Bool) ?? false
+            if needsConfirmation(label: ref), !confirm("Allow typing into “\(ref)”?\(submit ? " and submitting" : "")") {
                 log.append(AgentLogEntry(role: .action, text: "type cancelled → \(ref)"))
                 return ("Cancelled by user.", false)
             }
-            log.append(AgentLogEntry(role: .action, text: "type \"\(text)\" → \(ref)"))
-            let ok = await web.fill(ref: ref, text: text)
-            return (ok ? "Typed into \(ref)." : "Element \(ref) not found.", false)
+            log.append(AgentLogEntry(role: .action, text: "type \"\(text)\" → \(ref)\(submit ? " ⏎" : "")"))
+            let ok = await web.fill(ref: ref, text: text, submit: submit)
+            guard ok else { return ("Element \(ref) not found.", false) }
+            if submit {
+                await web.waitUntilIdle()
+                return (await pageState(prefix: "Typed into \(ref) and submitted."), false)
+            }
+            return ("Typed into \(ref).", false)
 
         case "click":
             let ref = (args["ref"] as? String) ?? ""
@@ -221,7 +227,9 @@ final class BrowserAgentViewModel: ObservableObject {
         - Typical flow: navigate → read_page → type into fields → click buttons or \
         links. After any action that changes the page, call read_page before acting again.
         - When you click, include a short human-readable "label" so the step is clear.
-        - To submit a search or form, click its button or the matching link.
+        - To run a search or submit a form, prefer type with submit=true (this \
+        presses Enter and works even when there is no visible submit button); \
+        otherwise click the button or matching link.
         - Stop as soon as the user's request is satisfied: call done with a one-line \
         summary. Do not keep clicking once the goal is reached, and never repeat an \
         action that already succeeded.
@@ -238,12 +246,13 @@ final class BrowserAgentViewModel: ObservableObject {
                   ]),
         AgentTool(name: "read_page", description: "Return the current page's interactable elements and text.",
                   parameters: ["type": "object", "properties": [String: Any]()]),
-        AgentTool(name: "type", description: "Type text into a field by its ref.",
+        AgentTool(name: "type", description: "Type text into a field by its ref. Set submit=true to press Enter / submit the form afterwards (e.g. to run a search).",
                   parameters: [
                     "type": "object",
                     "properties": [
                         "ref": ["type": "string", "description": "Element ref from read_page."],
                         "text": ["type": "string", "description": "Text to enter."],
+                        "submit": ["type": "boolean", "description": "Press Enter / submit after typing. Default false."],
                     ],
                     "required": ["ref", "text"],
                   ]),
