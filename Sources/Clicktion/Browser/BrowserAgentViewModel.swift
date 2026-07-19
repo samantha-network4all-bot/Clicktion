@@ -198,14 +198,21 @@ final class BrowserAgentViewModel: ObservableObject {
     // MARK: - Tools & prompt
 
     private static let systemPrompt = """
-        You control a web browser through tools. To act on the page you MUST use \
-        the element refs returned by navigate/read_page (never invent a ref). \
-        Workflow: navigate to a site, read_page to see interactable elements, \
-        then type into fields and click buttons by ref. Call read_page again after \
-        actions that change the page. If the element list is not enough to locate \
-        something (e.g. an image or canvas UI), call look_at_screen to get a visual \
-        description. Keep going until the user's request is done, then call done \
-        with a short summary. Be concise.
+        You control a web browser through tools to carry out the user's request.
+
+        Rules:
+        - Act only via element refs from the MOST RECENT navigate/read_page result. \
+        Refs are re-assigned every time the page is read, so never reuse a ref from \
+        an earlier step; call read_page again if you are unsure of the current refs.
+        - Typical flow: navigate → read_page → type into fields → click buttons or \
+        links. After any action that changes the page, call read_page before acting again.
+        - When you click, include a short human-readable "label" so the step is clear.
+        - To submit a search or form, click its button or the matching link.
+        - Stop as soon as the user's request is satisfied: call done with a one-line \
+        summary. Do not keep clicking once the goal is reached, and never repeat an \
+        action that already succeeded.
+        - If the element list doesn't show what you need (image or canvas UI), call \
+        look_at_screen. Keep responses concise.
         """
 
     static let tools: [AgentTool] = [
